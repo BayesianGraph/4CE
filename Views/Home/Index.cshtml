@@ -1,0 +1,304 @@
+﻿
+<form method="post" asp-controller="Home" enctype="multipart/form-data">
+    <script>
+        /*
+James B. Norman
+Weberlab
+DBMI
+Harvard Medical School
+
+*/
+        //Basket is _all_files.  I upload it all with the
+        //header json data (email,comments), to the API all at once.
+        var _all_files = new FormData();
+        var _tmp_file;
+
+        var _prefix = ""; //"4ce\\";
+
+        function readURL(files) {
+            //add only one file to the basket at a time.
+            
+            for (var i = 0; i < files.files.length; i++) {
+                _all_files.delete(files.files[i].name);
+                _all_files.append(files.files[i].name, files.files[i]);
+                $("#file-list").append(AddFileRow(files.files[i].name));
+            }
+
+        }
+
+        function AddFileRow(id) {
+            var rowid = id.replace(".", "");
+            var button = "<button onclick=\"removerow('" + rowid + "');\" type=\"button\" class=\"close\" aria-label=\"Close\">" +
+                "<span aria-hidden=\"true\">&times;</span>" +
+            "</button>";
+            if (!$("#file-list").find("#" + rowid).length) {
+                $("#file-list").append("<div id=\"" + rowid + "\">" + button + " " + id + "</div>");
+            }
+        }
+        function removerow(id) {
+            $("#" + id).remove();
+            //add the period back to remove it from the collection
+            id = id.toLowerCase().replace("csv", ".csv");
+            _all_files.delete(id);
+        }
+        function ValidateBatchHeader() {
+
+            var personsname = $("#PersonsName").val();
+            var email = $("#Email").val();
+            var siteid = $("#SiteID").val();
+            var comments = $("#Comments").val();
+
+            var data = JSON.stringify({
+                PersonsName: personsname,
+                Email: email,
+                SiteID: siteid,
+                Comments: comments
+            });
+            _tmp_file = data;
+            _all_files.delete("batchHeader");
+            $.ajax({
+                type: "POST",
+                url: _prefix + "home/ValidateBatchHeader",
+                processData: false,
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                data: data,
+                success: function (message) {
+
+                    var rtn = message;
+
+                    if (rtn.valid) {
+                        _all_files.append("batchHeader", _tmp_file);
+                        $("#cmd-process-batch").prop('disabled', false);
+                    } else {
+                        $("#cmd-process-batch").prop('disabled', true);
+                        for (var msg of rtn.messages) {
+                            $("#validation").append("<div>" + msg + "</div>");
+                        }
+                    }
+
+                },
+                error: function (message) {
+                    $("#validation").html("There was error validating your information!");
+                },
+                beforeSend: function () {
+                    $("#progress").show();
+                },
+                complete: function () {
+                    $("#progress").hide();
+                }
+            });
+
+
+            return data;
+
+        }
+        function ValidateFile(data) {
+            var fn = "";
+            for (var x of data.values()) {
+                fn = x.name.toLowerCase();
+            }
+
+
+            $.ajax({
+                type: "POST",
+                url: _prefix + "home/ValidateFile",
+                contentType: false,
+                processData: false,
+                data: data,
+                success: function (message) {
+                    var rtn = message;
+                    if (rtn.valid) {
+                        for (var x of _tmp_file.values()) {
+                            _all_files.delete(x.name);
+                            _all_files.append(x.name, x);
+                            if ($("#file-status").text().includes(x.name)) {
+                                $("#file-status").append("<div>" + x.name + " updated in basket as " + _file_type + " file type.</div>");
+                            } else {
+                                $("#file-status").append("<div>" + x.name + " added to basket as " + _file_type + " file type.</div>");
+                            }
+                        }
+
+                    }
+                    else {
+                        for (var msg of rtn.messages) {
+                            $("#validation").append("<div>" + msg + "</div>");
+                        }
+                        for (var x of _tmp_file.values()) {
+                            _all_files.delete(x.name);
+                            $("#file-status").text().replace(x.name, "<div style='text-decoration: line-through;color:red'>" + x.name + "</div>");
+                        }
+                    }
+                },
+                error: function (message) {
+                    _tmp_file = null;
+                    $("#validation").html("There was error uploading files!");
+                },
+                beforeSend: function () {
+                    $("#progress").show();
+                },
+                complete: function () {
+                    $("#progress").hide();
+                }
+            });
+
+
+
+        }
+        function ProcessBatch() {
+
+            $.ajax({
+                type: "POST",
+                url: _prefix + "home/UploadFiles",
+                contentType: false,
+                processData: false,
+                data: _all_files,
+                success: function (message) {
+                    var rtn = message
+                    if (rtn.valid) {
+                        $("#div-files").attr("style", "color:#009900");
+                        for (var msg of rtn.messages) {
+                            $("#div-messages").append("<div>" + msg + "</div>");
+                        }
+                    } else {
+                        $("#div-files").attr("style", "color:#990000");
+                        $("#div-messages").html("Your files could not be processed…");
+                        for (var msg of rtn.messages) {
+                            $("#div-messages").append("<div>" + msg + "</div>");
+                        }
+                    }
+                },
+                error: function (message) {
+                    _tmp_file = null;
+                    $("#div-messages").html("There was error uploading files!");
+                },
+                beforeSend: function () {
+                    $("#progress").show();
+                },
+                complete: function () {
+                    $("#progress").hide();
+                }
+            });
+
+        }
+
+        $(document).ready(function () {
+
+            $("#sel-projects").on("change", function () {
+                $("#div-files").html("");
+                $.ajax({
+                    type: "POST",
+                    url: _prefix + "home/GetFileIDs/" + $("#sel-projects").val(),
+                    contentType: false,
+                    processData: false,
+                    success: function (message) {
+
+                        for (var msg of message) {
+                            $("#div-files").append(msg.fileID);
+                            $("#div-files").append(", ");
+                        }
+                        $("#div-files").html($("#div-files").html().substring(0, $("#div-files").html().length - 2));
+
+
+                    },
+                    error: function (message) {
+                        _tmp_file = null;
+                        $("#validation").html("There was error uploading files!");
+                    }
+
+                });
+
+            });
+
+            $(".form-control").focusin(function () {
+                $("#cmd-process-batch").prop('disabled', false);
+            });
+
+            $(".file-upload").on('change', function () {
+                readURL(this);
+            });
+
+        });
+
+
+
+    </script>
+    <div style="min-width:800px;margin-bottom:100px;">
+
+        <div class="container">
+            <div class="row">
+                <h1 class="display-2">4CE Data Upload Tool</h1>
+            </div>
+            <div class="row" style="margin-bottom:25px;">
+                <h5>Please submit the following information and provide your files for validation and upload.</h5>
+            </div>
+            <div class="row">
+                <div class="col-2">
+                    <h5>Your name</h5>
+                </div>
+                <div class="col">
+                    <input type="text" class="form-control" id="PersonsName" maxlength="200" name="PersonsName" value="" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-2">
+                    <h5>Email</h5>
+                </div>
+                <div class="col">
+                    <input type="email" class="form-control" id="Email" maxlength="100" name="Email" value="" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-2">
+                    <h5>SiteID</h5>
+                </div>
+                <div class="col-xs-5">
+                    <input type="text" class="form-control" id="SiteID" maxlength="20" name="SiteID" value="" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-2">
+                    <h5>Comments</h5>
+                </div>
+                <div class="col">
+                    <textarea name="Comments" rows="5" class="form-control" id="Comments"></textarea>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-2">
+                    <h5>Project</h5>
+                </div>
+                <div class="col">
+                    @Html.DropDownList("Projects", null, "Select Project", htmlAttributes: new { @class = "form-control", @id = "sel-projects" })
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-2"><h5>Files</h5></div>
+                <div class="col">
+                    <div id="div-files"></div>
+                </div>
+            </div>
+            <div class="row" id="upload-row">
+                <div class="col-2">
+                    <label class="button" id="pic">
+                        Select Files
+                        <input type="file" class="file-upload" id="files" name="files" multiple accept="*.csv">
+                    </label>
+                </div>
+                <div class="col"><div id="file-list"></div></div>
+            </div>
+            <div class="row">
+                <div class="col-1">
+                    <input type="button" class="button" onclick="ProcessBatch()" onmouseover="ValidateBatchHeader();" id="cmd-process-batch" value="Upload and Validate" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="col">
+                    <div id="div-messages"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</form>
