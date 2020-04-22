@@ -239,8 +239,8 @@ namespace i2b2_csv_loader.Controllers
                     await CreateFolder(dbx, directory + directory_sub);
                     MemoryStream stream = new MemoryStream();
                     await file.File.CopyToAsync(stream);
+                    size = file.File.Length;
                     await Upload(dbx, directory + directory_sub, file.FileProperties.file_name, stream);
-                    size = stream.Length;
                 }
                 catch (ApiException<Dropbox.Api.Files.GetMetadataError> e)
                 {
