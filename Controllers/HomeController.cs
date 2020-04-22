@@ -129,6 +129,18 @@ namespace i2b2_csv_loader.Controllers
         [HttpPost]
         public IActionResult ValidateBatchHeader([FromBody] BatchHead batch)
         {
+            return ValidateForm(batch);
+        }
+        [HttpPost]
+        [Route("Home/GetFileIDs/{projectid?}")]
+        public IActionResult GetFileIDs(string projectid)
+        {
+
+            return Json(GetProjectFiles(projectid));
+
+        }
+        private IActionResult ValidateForm(BatchHead batch)
+        {
             ResponseModel rm = new ResponseModel() { messages = new List<string>() };
 
             if (batch.PersonsName.Trim() == "")
@@ -144,14 +156,6 @@ namespace i2b2_csv_loader.Controllers
 
 
             return Json(rm);
-        }
-        [HttpPost]
-        [Route("Home/GetFileIDs/{projectid?}")]
-        public IActionResult GetFileIDs(string projectid)
-        {
-
-            return Json(GetProjectFiles(projectid));
-
         }
         private string ValidateFile(IFormFile file, string siteid)
         {

@@ -57,6 +57,7 @@ Harvard Medical School
             });
             _tmp_file = data;
             _all_files.delete("batchHeader");
+            $("#div-messages").html("");
             $.ajax({
                 type: "POST",
                 url: _prefix + "home/ValidateBatchHeader",
@@ -65,7 +66,7 @@ Harvard Medical School
                 dataType: "json",
                 data: data,
                 success: function (message) {
-
+                    $("#div-messages").attr("style", "color:#009900");
                     var rtn = message;
 
                     if (rtn.valid) {
@@ -73,20 +74,22 @@ Harvard Medical School
                         $("#cmd-process-batch").prop('disabled', false);
                     } else {
                         $("#cmd-process-batch").prop('disabled', true);
+                        $("#div-messages").attr("style", "color:#990000");
                         for (var msg of rtn.messages) {
-                            $("#validation").append("<div>" + msg + "</div>");
+                            $("#div-messages").append("<div>" + msg + "</div>");
                         }
                     }
 
                 },
                 error: function (message) {
+                    $("#div-messages").attr("style", "color:#990000");
                     $("#validation").html("There was error validating your information!");
                 },
                 beforeSend: function () {
-                    $("#progress").show();
+                    
                 },
                 complete: function () {
-                    $("#progress").hide();
+                    
                 }
             });
 
