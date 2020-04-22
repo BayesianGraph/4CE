@@ -1,5 +1,5 @@
 ﻿
-<form method="post" asp-controller="Home" enctype="multipart/form-data">
+<form id="upload-form" method="post" asp-controller="Home" enctype="multipart/form-data">
     <script>
         /*
 James B. Norman
@@ -12,12 +12,13 @@ Harvard Medical School
         //header json data (email,comments), to the API all at once.
         var _all_files = new FormData();
         var _tmp_file;
-
+        var _status = 25;
         var _prefix = ""; //"4ce\\";
+
 
         function readURL(files) {
             //add only one file to the basket at a time.
-            
+
             for (var i = 0; i < files.files.length; i++) {
                 _all_files.delete(files.files[i].name);
                 _all_files.append(files.files[i].name, files.files[i]);
@@ -30,7 +31,7 @@ Harvard Medical School
             var rowid = id.replace(".", "");
             var button = "<button onclick=\"removerow('" + rowid + "');\" type=\"button\" class=\"close\" aria-label=\"Close\">" +
                 "<span aria-hidden=\"true\">&times;</span>" +
-            "</button>";
+                "</button>";
             if (!$("#file-list").find("#" + rowid).length) {
                 $("#file-list").append("<div id=\"" + rowid + "\">" + button + " " + id + "</div>");
             }
@@ -154,14 +155,20 @@ Harvard Medical School
                 processData: false,
                 data: _all_files,
                 success: function (message) {
-                    var rtn = message
+                    $("#div-messages").html("");
+
+                    var rtn = message;
                     if (rtn.valid) {
-                        $("#div-files").attr("style", "color:#009900");
+                        $("#div-messages").attr("style", "color:#009900");
                         for (var msg of rtn.messages) {
                             $("#div-messages").append("<div>" + msg + "</div>");
                         }
+                        $("#file-list").remove();
+                        $('input:text').val('');
+                        $("input[type=button]").attr("disabled", "disabled");
+
                     } else {
-                        $("#div-files").attr("style", "color:#990000");
+                        $("#div-messages").attr("style", "color:#990000");
                         $("#div-messages").html("Your files could not be processed…");
                         for (var msg of rtn.messages) {
                             $("#div-messages").append("<div>" + msg + "</div>");
@@ -173,10 +180,11 @@ Harvard Medical School
                     $("#div-messages").html("There was error uploading files!");
                 },
                 beforeSend: function () {
-                    $("#progress").show();
+                    $("#div-messages").html(getstatusbar());
+                    updatestatusbar();
                 },
                 complete: function () {
-                    $("#progress").hide();
+                    
                 }
             });
 
@@ -220,7 +228,21 @@ Harvard Medical School
 
         });
 
+        function getstatusbar() {
+            var bar = "<div class=\"w3-border\">" +
+                "<div class=\"w3-green\" style=\"height:24px;width:20%\"></div>" +
+                "</div>";
 
+            return bar;
+        }
+
+        function updatestatusbar() {
+            var bar =  setInterval(function () {
+                _status = _status + 10;
+                if (_status > 100) { clearInterval(bar);}
+                $(".w3-green").css("width", _status + "%")
+            }, 1000);
+        }
 
     </script>
     <div style="min-width:800px;margin-bottom:100px;">
@@ -245,7 +267,7 @@ Harvard Medical School
                     <h5>Email</h5>
                 </div>
                 <div class="col">
-                    <input type="email" class="form-control" id="Email" maxlength="100" name="Email" value="" />
+                    <input type="text" class="form-control" id="Email" maxlength="100" name="Email" value="" />
                 </div>
             </div>
             <div class="row">
@@ -295,7 +317,9 @@ Harvard Medical School
             </div>
             <div class="row">
                 <div class="col">
-                    <div id="div-messages"></div>
+                    <div id="div-messages">
+                       
+                    </div>
                 </div>
             </div>
 
