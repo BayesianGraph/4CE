@@ -139,6 +139,8 @@ namespace i2b2_csv_loader.Controllers
             return Json(GetProjectFiles(projectid));
 
         }
+       
+        //Validation 
         private IActionResult ValidateForm(BatchHead batch)
         {
             ResponseModel rm = new ResponseModel() { messages = new List<string>() };
@@ -217,7 +219,6 @@ namespace i2b2_csv_loader.Controllers
         //DropBox
         private async Task<long> BurnFileAsync(Models.Files file)
         {  
-
         
             DateTime dt = DateTime.Now;
             string folder_date = $"{dt.Month}-{dt.Day}-{dt.Year}";
@@ -239,6 +240,7 @@ namespace i2b2_csv_loader.Controllers
                     MemoryStream stream = new MemoryStream();
                     await file.File.CopyToAsync(stream);
                     await Upload(dbx, directory + directory_sub, file.FileProperties.file_name, stream);
+                    size = stream.Length;
                 }
                 catch (ApiException<Dropbox.Api.Files.GetMetadataError> e)
                 {
@@ -294,10 +296,9 @@ namespace i2b2_csv_loader.Controllers
             Console.WriteLine("Saved {0}/{1} rev {2}", folder, file, updated.Rev);
 
         }
-
-
-
         
+        
+
         private string CheckColsExist(CsvReader csv, int cols)
         {
             var message = "";
