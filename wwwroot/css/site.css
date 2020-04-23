@@ -170,3 +170,7 @@ input[type=file] {
 #upload-row{
     margin-top:25px;
 }
+.file-list-container{
+    display:inline-grid;
+}
+#pic{width:95px;}

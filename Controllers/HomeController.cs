@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc;
 using i2b2_csv_loader.Models;
 using Microsoft.AspNetCore.Http;
-using CsvHelper;
 using System.Linq;
 using i2b2_csv_loader.Helpers;
 using Dapper;
@@ -17,6 +16,7 @@ using System.Threading.Tasks;
 using Dropbox.Api;
 using System.Text;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using System.Globalization;
 
 namespace i2b2_csv_loader.Controllers
 {
@@ -24,7 +24,7 @@ namespace i2b2_csv_loader.Controllers
     public class HomeController : Controller
     {
         private List<Models.Files> _files = new List<Models.Files>();
-
+        private List<Models.ProjectFiles> _projectfiles = new List<ProjectFiles>();
         private readonly IConfiguration _configuration;
 
         public HomeController(IConfiguration configuration)
@@ -36,7 +36,7 @@ namespace i2b2_csv_loader.Controllers
         public ActionResult Index()
         {
 
-            ViewBag.Projects = new SelectList(GetProjects(),"ProjectID","ProjectName"); 
+            ViewBag.Projects = new SelectList(GetProjects(), "ProjectID", "ProjectName");
             //ViewBag.Files = 
 
             return View();
@@ -52,18 +52,25 @@ namespace i2b2_csv_loader.Controllers
             try
             {
                 form = JsonSerializer.Deserialize<BatchHead>(Request.Form["batchHeader"].ToString());
+
             }
             catch (JsonException)
             {
                 // throw ex;
 
             }
+            if (!((ResponseModel)((Microsoft.AspNetCore.Mvc.JsonResult)ValidateForm(form)).Value).valid)
+            {
+                return Json((ResponseModel)ValidateForm(form));
+            }
+
+
 
             //validate each file, store the physical files at the end after all have passed validation
             string file_msg = "";
             foreach (var file in files)
             {
-                file_msg = ValidateFile(file, form.SiteID);
+                rm = ValidateFile(file, form);
                 if (file_msg != "")
                 {
                     rm.messages.Add(file_msg);
@@ -71,61 +78,44 @@ namespace i2b2_csv_loader.Controllers
                 }
             }
 
-            if (rm.messages.Count == 0)
-            {
-                form.Version = this.AddInstance(form);
-                if (form.Version.All(char.IsDigit))
-                {
-                    long uploadsize = 0;
-                    foreach (Models.Files file in _files)
-                    {
-                        file.FileProperties.site_id = form.SiteID;
-                        file.FileProperties.version = form.Version;
-                        uploadsize = await BurnFileAsync(file); //Writes it to disk/dropbox/google docs.
-                        rm.messages.Add(file.FileProperties.file_name);
-                        if (!this.SaveFile(file.FileProperties)) //writes it to DB
-                        {
-                            rm.messages.Add($"{file.FileProperties.file_name} was not saved to the database.");
-                        }
 
-                    }
 
-                    string message = $"{files.Count} file(s) /{uploadsize} bytes uploaded successfully!";
-                    rm.messages.Add(message);
-                    rm.valid = true;
-                }
-                else
-                {
-                    rm.messages.Add("Site ID Version is not valid.");
-                }
-            }
+
+
+
+
+            //if (rm.messages.Count == 0)
+            //{
+
+
+            //    {
+            //        long uploadsize = 0;
+            //        foreach (Models.Files file in _files)
+            //        {
+
+            //            uploadsize = await BurnFileAsync(file); //Writes it to disk/dropbox/google docs.
+
+            //            //if (!this.SaveFile(file.FileProperties)) //writes it to DB
+            //            //{
+            //            //   // rm.messages.Add($"{file.FileProperties.file_name} was not saved to the database.");
+            //            //}
+
+            //        }
+
+            //        string message = $"{files.Count} file(s) /{uploadsize} bytes uploaded successfully!";
+            //        rm.messages.Add(message);
+            //        rm.valid = true;
+            //    }
+            //    else
+            //    {
+            //        rm.messages.Add("Site ID Version is not valid.");
+            //    }
+            //}
 
             return Json(rm);
 
         }
-        [HttpPost]
-        public IActionResult ValidateFile()
-        {
-            var file = Request.Form.Files[0];
-            string file_validation = "";
-            ResponseModel rm = new ResponseModel() { messages = new List<string>() };
 
-            file_validation = ValidateFile(file, "");
-            if (file_validation == "")
-            {
-                rm.valid = true;
-                rm.size = file.Length;
-                return Json(rm);
-            }
-
-            file_validation = file_validation.Replace("You can ignore missing fields by setting MissingFieldFound to null.", "");
-
-            rm.valid = false;
-            rm.size = 0;
-            rm.messages.Add(file_validation);
-            return Json(rm);
-
-        }
         [HttpPost]
         public IActionResult ValidateBatchHeader([FromBody] BatchHead batch)
         {
@@ -139,7 +129,7 @@ namespace i2b2_csv_loader.Controllers
             return Json(GetProjectFiles(projectid));
 
         }
-       
+
         //Validation 
         private IActionResult ValidateForm(BatchHead batch)
         {
@@ -154,63 +144,148 @@ namespace i2b2_csv_loader.Controllers
             if (batch.SiteID.Trim() == "")
                 rm.messages.Add("SiteID field required.");
 
+            if (batch.ProjectID.Trim() == "")
+                rm.messages.Add("Please select project from dropdown.");
+
             rm.valid = (rm.messages.Count == 0 ? true : false);
 
 
             return Json(rm);
         }
-        private string ValidateFile(IFormFile file, string siteid)
+        private ResponseModel ValidateFile(IFormFile datafile, BatchHead form)
         {
-            Models.Files files = new Files
+            Models.Files file = new Files
             {
-                File = file,
-                FileProperties = new FileProperties()
+                File = datafile,
+                FileProperties = new List<FileProperties>()
             };
-            files.FileProperties.file_name = file.Name;
-            files.FileProperties.file_size = file.Length.ToString();
+            _projectfiles = GetProjectFiles(form.ProjectID);
 
-            string message;
-            switch (file.Name.Split('-')[0].ToLower())
+            string message = "";
+
+            string filename = datafile.Name.Split("-")[0].ToLower();
+
+            //Check that the name of the file exists in a given project
+            if (!_projectfiles.Exists(f => f.FileID.ToLower() == filename))
             {
-                case "diagnoses":
-                    message = ValidateFileTypeFormat<DiagnosesModel>(file, 4, siteid);
+                message = $"{datafile.Name} has the incorrect name. It must start with one of the following words: {ConvertToFileString(_projectfiles)}";
+            }
 
-                    if (message == "")
-                    {
-                        files.FileProperties.file_type = "Diagnoses";
-                        _files.Add(files);
-                    }
-                    break;
-                case "dailycounts":
-                    message = ValidateFileTypeFormat<DailyCountsModel>(file, 5, siteid);
-                    if (message == "")
-                    {
-                        files.FileProperties.file_type = "DailyCount";
-                        _files.Add(files);
-                    }
-                    break;
-                case "demographics":
-                    message = ValidateFileTypeFormat<DemographicsModel>(file, 12, siteid);
-                    if (message == "")
-                    {
-                        files.FileProperties.file_type = "Demographics";
-                        _files.Add(files);
-                    }
-                    break;
-                case "labs":
-                    message = ValidateFileTypeFormat<LabsModel>(file, 6, siteid);
-                    if (message == "")
-                    {
-                        files.FileProperties.file_type = "Labs";
-                        _files.Add(files);
-                    }
-                    break;
-                default:
-                    message = $"{file.Name} is not a reconized file type. <br/>Valid CSV file types are: <ul><li>Diagnoses</li><li>DailyCount</li><li>Demographics</li><li>Labs</li></ul>";
-                    break;
+
+            file.FileProperties = GetFileProperties(form.ProjectID, filename);
+
+            //Raw text data in lists of srings
+            List<string> data = CSVReader.ReadFormFile(datafile);
+            List<string> colheaders = data[0].Split(",").ToList();
+            //remove the col headers from the data;
+            data.Remove(data[0]);
+
+            //check the number of cols are a match with what comes back from the DB file properties
+            if (!(colheaders.Count() == file.FileProperties.Count()))
+            {
+                message = $"{datafile.Name} contains {data[0].Split(",").Count()} columns, but {file.FileProperties.Count()} where expected.";
+            }
+            //check the col names match with what comes back from teh DB file properties
+            foreach (string col in colheaders)
+            {
+                if (!file.FileProperties.Exists(x => x.ColumnName.ToLower() == col.ToLower()))
+                {
+                    message = $"{datafile.Name} contains incorrect column headers. They must be {data[0]}.";
+                }
 
             }
 
+            
+
+            //check siteid in file with what was provided in the form post to the API
+            foreach (var s in data)
+            {                //first col of every line should be the siteid
+                if (!(s.Split(",")[0].ToLower() == form.SiteID.ToLower()))
+                {
+                    message = $"The siteid values in {datafile.Name} do not match the Siteid in the form.";
+                }
+
+                var row = s.Split(",").ToList();
+                int colcnt = 0;
+                FileProperties fcp;
+                foreach (string c in row)
+                {
+                    //every property of a column from the database
+                    fcp = file.FileProperties.Find(x => x.ColumnName == colheaders[colcnt]);
+
+                    //validate no nulls
+                    if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
+                        message = $"{datafile.Name} contains missing or null values in column {colheaders[colcnt]}. Use -2 to indicate missing data.";
+
+                    //validate datatypes are ok  
+                    //validate ranges in fields in each datatype test as well.  Max and Min can be
+                    //date, int, etc..
+                    switch (fcp.DataType.ToLower())
+                    {
+                        case "string":
+
+                            if (fcp.ValueList != null)
+                            {
+                                if(!fcp.ValueList.Split("|").ToList().Exists(x => x==c))
+                                    message = $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are not found in the list {fcp.ValueList.Replace("|",", ")}";
+                            }
+
+
+                            break;
+                        case "date":
+                            if (!Helpers.DateValidation.IsValidDate(c) == true)
+                                message = $"The dates in column {fcp.ColumnName} in {datafile.FileName } must be in the format YYYY-MM-DD";
+                            else if (!Helpers.DateValidation.DateRange(c, fcp.MaxValue, fcp.MinValue))
+                                message = $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}";
+
+                            break;
+                        case "int":
+                            int parsedResult;
+                            if (!int.TryParse(c, out parsedResult))
+                            {
+                                message = $"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}";
+                            }
+                            else if (!Helpers.RangeValidation.IntRanges(parsedResult, fcp.MaxValue, fcp.MaxValue))
+                            { message = $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] valid ranges."; }
+
+
+                            break;
+                        case "real":
+                            float f;
+                            if (!float.TryParse(c, out f))
+                                message = $"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}";
+                            else if (!Helpers.RangeValidation.FloatRanges(f, fcp.MaxValue, fcp.MaxValue))
+                            { message = $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}"; }
+
+
+                            break;
+
+                    }
+
+
+
+
+
+
+
+
+                    colcnt++;
+                }
+
+
+
+
+
+
+
+
+            }
+
+
+
+
+            //If 
+            _files.Add(file);
 
             return message;
 
@@ -218,47 +293,47 @@ namespace i2b2_csv_loader.Controllers
 
         //DropBox
         private async Task<long> BurnFileAsync(Models.Files file)
-        {  
-        
-            DateTime dt = DateTime.Now;
-            string folder_date = $"{dt.Month}-{dt.Day}-{dt.Year}";
+        {
 
-            long size = 0;            
+            //DateTime dt = DateTime.Now;
+            //string folder_date = $"{dt.Month}-{dt.Day}-{dt.Year}";
 
-            using (var dbx = new DropboxClient(_configuration.GetSection("Dropbox")["key"]))
-            {
-                //var full = await dbx.Users.GetCurrentAccountAsync();
-                //Console.WriteLine("{0} - {1}", full.Name.DisplayName, full.Email);
+            long size = 0;
 
-                string directory = $"/uploadedfiles/{file.FileProperties.site_id}";
-                string directory_sub = $"/{file.FileProperties.site_id}_{Convert.ToInt32(file.FileProperties.version):D6}_{folder_date}";
+            //using (var dbx = new DropboxClient(_configuration.GetSection("Dropbox")["key"]))
+            //{
+            //    //var full = await dbx.Users.GetCurrentAccountAsync();
+            //    //Console.WriteLine("{0} - {1}", full.Name.DisplayName, full.Email);
 
-                try
-                {
-                    await CreateFolder(dbx, directory);
-                    await CreateFolder(dbx, directory + directory_sub);
-                    MemoryStream stream = new MemoryStream();
-                    await file.File.CopyToAsync(stream);
-                    size = file.File.Length;
-                    await Upload(dbx, directory + directory_sub, file.FileProperties.file_name, stream);
-                }
-                catch (ApiException<Dropbox.Api.Files.GetMetadataError> e)
-                {
-                    if (e.ErrorResponse.IsPath && e.ErrorResponse.AsPath.Value.IsNotFound)
-                    {
-                        Console.WriteLine("Nothing found at path.");
-                    }
-                    else
-                    {
-                        // different issue; handle as desired
-                        Console.WriteLine(e);
-                    }
-                }
+            //    string directory = $"/uploadedfiles/{file.FileProperties.site_id}";
+            //    string directory_sub = $"/{file.FileProperties.site_id}_{Convert.ToInt32(file.FileProperties.version):D6}_{folder_date}";
 
-            }
-            
+            //    try
+            //    {
+            //        await CreateFolder(dbx, directory);
+            //        await CreateFolder(dbx, directory + directory_sub);
+            //        MemoryStream stream = new MemoryStream();
+            //        await file.File.CopyToAsync(stream);
+            //        size = file.File.Length;
+            //        await Upload(dbx, directory + directory_sub, file.FileProperties.file_name, stream);
+            //    }
+            //    catch (ApiException<Dropbox.Api.Files.GetMetadataError> e)
+            //    {
+            //        if (e.ErrorResponse.IsPath && e.ErrorResponse.AsPath.Value.IsNotFound)
+            //        {
+            //            Console.WriteLine("Nothing found at path.");
+            //        }
+            //        else
+            //        {
+            //            // different issue; handle as desired
+            //            Console.WriteLine(e);
+            //        }
+            //    }
+
+            //}
+
             return size;
-        }        
+        }
         private static async Task<FolderMetadata> CreateFolder(DropboxClient client, string path)
         {
             Console.WriteLine("--- Creating Folder ---");
@@ -296,140 +371,75 @@ namespace i2b2_csv_loader.Controllers
             Console.WriteLine("Saved {0}/{1} rev {2}", folder, file, updated.Rev);
 
         }
-        
-        
 
-        private string CheckColsExist(CsvReader csv, int cols)
+
+
+        private string ConvertToFileString(List<ProjectFiles> pf)
         {
-            var message = "";
-            for (int i = 0; i < cols; i++)
+            string rtn = "";
+
+            foreach (var f in pf)
             {
-                try
-                {
-                    if (csv[i].Length > 0) { }
-                }
-                catch (CsvHelperException ex)
-                { message = $"field missing, expected {cols} fields total. {ex.Message.Replace("You can ignore missing fields by setting MissingFieldFound to null.", "")}."; }
+                rtn += $"{f.FileID}, ";
 
             }
-            return message;
-        }
-     
-        
-        
-        //CSV Helper Lib
-        private CsvHelper.Configuration.CsvConfiguration GetConfig()
-        {
-            var config = new CsvHelper.Configuration.CsvConfiguration(System.Globalization.CultureInfo.CurrentCulture)
-            {
-                HasHeaderRecord = false,
-                AllowComments = false,
-                Delimiter = ","
-
-            };
-            return config;
-        }
-        private string ValidateFileTypeFormat<T>(IFormFile file, int fieldcount, string siteid)
-        {
-            var config = GetConfig();
-            List<T> result = new List<T>();
-            string message = "";
-            using (TextReader reader = new StreamReader(file.OpenReadStream()))
-            {
-                var csv = new CsvReader(reader, config);
-
-                while (csv.Read())
-                {
-                    message = CheckColsExist(csv, fieldcount);
-
-                    if (message != "") return message;
-                    try
-                    {
-                        if ((csv[0].ToString().ToLower() == siteid.ToLower()) || siteid == "")
-                        {
-                            var row = csv.GetRecord<T>();
-
-                            result.Add(row);
-                        }
-                        else { return $"Site ID col does not map to {siteid}."; }
-                    }
-                    catch (CsvHelper.ReaderException e)
-                    {
-                        return ProcessValidationMessage(file.Name, e);
-                    }
-                }
-            }
-
-
-            return "";
-        }
-
-
-        private string ProcessValidationMessage(string filename, CsvHelperException e)
-        {
-            var message = "";
-            if (e.InnerException != null)
-                message = $"{e.InnerException.Message}";
-            else
-            {
-                message = $"{e.Message.Replace("MemberType", "Expects ")}";
-                message = (message.Contains("System.Int32") ? message.Replace("System.Int32", "Number Value") : message);
-
-            }
-
-            return $"{filename} failed because of {message.Replace("\r\n", "</br>")}";
+            return rtn.Substring(0, rtn.Length - 2);
 
         }
+
+
+
+
 
         //DataIO
-        public string AddInstance(Models.BatchHead head)
-        {
-            string version = "";
-            try
-            {
-                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
-                {
-                    db.Open();
-                    var p = new DynamicParameters();
-                    p.Add("@site_id", head.SiteID, dbType: DbType.String);
-                    p.Add("@person_name", head.PersonsName, dbType: DbType.String);
-                    p.Add("@email", head.Email, dbType: DbType.String);
-                    p.Add("@comments", head.Comments, dbType: DbType.String);
+        //public string AddInstance(Models.BatchHead head)
+        //{
+        //    string version = "";
+        //    try
+        //    {
+        //        using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
+        //        {
+        //            db.Open();
+        //            var p = new DynamicParameters();
+        //            p.Add("@site_id", head.SiteID, dbType: DbType.String);
+        //            p.Add("@person_name", head.PersonsName, dbType: DbType.String);
+        //            p.Add("@email", head.Email, dbType: DbType.String);
+        //            p.Add("@comments", head.Comments, dbType: DbType.String);
 
-                    version = db.Query<string>("sp_add_instance", p, commandType: CommandType.StoredProcedure).Single().ToString();
+        //            version = db.Query<string>("sp_add_instance", p, commandType: CommandType.StoredProcedure).Single().ToString();
 
-                }
-            }
-            catch (SqlException ex)
-            {
-                return ex.Message;
-            }
+        //        }
+        //    }
+        //    catch (SqlException ex)
+        //    {
+        //        return ex.Message;
+        //    }
 
-            return version;
-        }
-        public bool SaveFile(Models.FileProperties file)
-        {
-            try
-            {
-                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
-                {
-                    db.Open();
-                    var p = new DynamicParameters();
-                    p.Add("@site_id", file.site_id, dbType: DbType.String);
-                    p.Add("@file_name", file.file_name, dbType: DbType.String);
-                    p.Add("@file_type", file.file_type, dbType: DbType.String);
-                    p.Add("@file_size", file.file_size, dbType: DbType.String);
-                    p.Add("@version", file.version, dbType: DbType.String);
-                    db.Execute("sp_add_file", p, commandType: CommandType.StoredProcedure);
+        //    return version;
+        //}
+        //public bool SaveFile(Models.FileProperties file)
+        //{
+        //    try
+        //    {
+        //        using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
+        //        {
+        //            db.Open();
+        //            var p = new DynamicParameters();
+        //            p.Add("@site_id", file.site_id, dbType: DbType.String);
+        //            p.Add("@file_name", file.file_name, dbType: DbType.String);
+        //            p.Add("@file_type", file.file_type, dbType: DbType.String);
+        //            p.Add("@file_size", file.file_size, dbType: DbType.String);
+        //            p.Add("@version", file.version, dbType: DbType.String);
+        //            db.Execute("sp_add_file", p, commandType: CommandType.StoredProcedure);
 
-                }
-            }
-            catch (SqlException)
-            {
-                return false;
-            }
-            return true;
-        }
+        //        }
+        //    }
+        //    catch (SqlException)
+        //    {
+        //        return false;
+        //    }
+        //    return true;
+        //}
         public List<ProjectModel> GetProjects()
         {
             List<ProjectModel> pm = new List<ProjectModel>();
@@ -437,11 +447,10 @@ namespace i2b2_csv_loader.Controllers
             {
                 using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
                 {
-                    db.Open();                    
-                   
+                    db.Open();
 
-                    pm = db.Query<ProjectModel>("dbo.uspGetProjects",null, commandType: CommandType.StoredProcedure).ToList();
-                    
+                    pm = db.Query<ProjectModel>("dbo.uspGetProjects", null, commandType: CommandType.StoredProcedure).ToList();
+
                 }
             }
             catch (SqlException)
@@ -459,8 +468,8 @@ namespace i2b2_csv_loader.Controllers
                 using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
                 {
                     db.Open();
-                    var p = new DynamicParameters();                    
-                    p.Add("@ProjectID",projectid, dbType: DbType.String);                    
+                    var p = new DynamicParameters();
+                    p.Add("@ProjectID", projectid, dbType: DbType.String);
                     fns = db.Query<ProjectFiles>("dbo.uspGetProjectFiles", p, commandType: CommandType.StoredProcedure).ToList();
                 }
             }
@@ -471,5 +480,31 @@ namespace i2b2_csv_loader.Controllers
             return fns;
 
         }
+        public List<FileProperties> GetFileProperties(string projectid, string fileid)
+        {
+
+            List<FileProperties> fp = new List<FileProperties>();
+            try
+            {
+                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
+                {
+                    db.Open();
+                    var p = new DynamicParameters();
+                    p.Add("@ProjectID", projectid, dbType: DbType.String);
+                    p.Add("@FileID", fileid, dbType: DbType.String);
+                    fp = db.Query<FileProperties>("dbo.uspGetProjectFileColumns", p, commandType: CommandType.StoredProcedure).ToList();
+                }
+            }
+            catch (SqlException)
+            {
+                return fp;
+            }
+            return fp;
+
+
+
+
+        }
+
     }
 }

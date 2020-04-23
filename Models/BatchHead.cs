@@ -11,7 +11,7 @@ namespace i2b2_csv_loader.Models
         public string Email { get; set; }
         public string SiteID { get; set; }
         public string Comments { get; set; }  
-        public string Version { get; set; }
+        public string ProjectID { get; set; }
 
     }
 }
