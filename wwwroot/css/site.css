@@ -154,7 +154,10 @@ form {
 
 #div-messages {
     margin-top: 5px;
-    font-weight: bold;
+    font-weight: bold;    
+}
+.div-message{
+    margin:5px;
 }
 
 input[type=file] {

@@ -49,6 +49,7 @@ namespace i2b2_csv_loader.Controllers
             ResponseModel rm = new ResponseModel() { messages = new List<string>() };
             BatchHead form = new BatchHead();
 
+            //check that the json format is correct
             try
             {
                 form = JsonSerializer.Deserialize<BatchHead>(Request.Form["batchHeader"].ToString());
@@ -56,30 +57,37 @@ namespace i2b2_csv_loader.Controllers
             }
             catch (JsonException)
             {
-                // throw ex;
+                rm.messages.Add("Form data is not correct. Please check Name, Email, SiteID and Project fields.");
+                return Json(rm);
 
             }
+            //check the form data is correct.
             if (!((ResponseModel)((Microsoft.AspNetCore.Mvc.JsonResult)ValidateForm(form)).Value).valid)
             {
-                return Json((ResponseModel)ValidateForm(form));
+                rm = (ResponseModel)ValidateForm(form);
+                return Json(rm);
             }
-
 
 
             //validate each file, store the physical files at the end after all have passed validation
-            string file_msg = "";
+            List<string> tmpmessages;
             foreach (var file in files)
             {
-                rm = ValidateFile(file, form);
-                if (file_msg != "")
-                {
-                    rm.messages.Add(file_msg);
-                    file_msg = "";
-                }
+                tmpmessages = new List<string>();
+                tmpmessages = ValidateFile(file, form);
+
+                foreach (string s in tmpmessages)
+                    rm.messages.Add(s);
+
             }
 
+            
 
-
+            if (rm.messages.Count() == 0) {
+                rm.valid = true;// do the upload junk and write to dropbox
+                rm.messages.Add($"{files.Count()} file{(files.Count()>1?"s are":" is")} valid and uploaded.");
+            }
+            else { return Json(rm); }
 
 
 
@@ -152,142 +160,146 @@ namespace i2b2_csv_loader.Controllers
 
             return Json(rm);
         }
-        private ResponseModel ValidateFile(IFormFile datafile, BatchHead form)
+        private List<string> ValidateFile(IFormFile datafile, BatchHead form)
         {
             Models.Files file = new Files
             {
                 File = datafile,
-                FileProperties = new List<FileProperties>()
+                FileProperties = new List<FileProperties>(),
+                Valid = false
             };
+
+            bool stopdup = false;
+
             _projectfiles = GetProjectFiles(form.ProjectID);
 
-            string message = "";
+            List<string> messages = new List<string>();
 
             string filename = datafile.Name.Split("-")[0].ToLower();
 
-            //Check that the name of the file exists in a given project
-            if (!_projectfiles.Exists(f => f.FileID.ToLower() == filename))
-            {
-                message = $"{datafile.Name} has the incorrect name. It must start with one of the following words: {ConvertToFileString(_projectfiles)}";
-            }
-
-
             file.FileProperties = GetFileProperties(form.ProjectID, filename);
 
+            //Check that the name of the file exists in a given project
+            if (!_projectfiles.Exists(f => f.FileID.ToLower() == filename)||file.FileProperties.Count()==0)
+            {
+                messages.Add($"{datafile.Name} has the incorrect name. It must start with one of the following words: {ConvertToFileString(_projectfiles)}");
+            }           
+            
             //Raw text data in lists of srings
             List<string> data = CSVReader.ReadFormFile(datafile);
             List<string> colheaders = data[0].Split(",").ToList();
+            string colheadermsg = data[0];
+
             //remove the col headers from the data;
             data.Remove(data[0]);
 
             //check the number of cols are a match with what comes back from the DB file properties
-            if (!(colheaders.Count() == file.FileProperties.Count()))
+            if (!(colheaders.Count() == file.FileProperties.Count())&&file.FileProperties.Count()!=0)
             {
-                message = $"{datafile.Name} contains {data[0].Split(",").Count()} columns, but {file.FileProperties.Count()} where expected.";
+                messages.Add($"{datafile.Name} contains {data[0].Split(",").Count()} columns, but {file.FileProperties.Count()} where expected.");
             }
+
+
             //check the col names match with what comes back from teh DB file properties
             foreach (string col in colheaders)
             {
-                if (!file.FileProperties.Exists(x => x.ColumnName.ToLower() == col.ToLower()))
+                if (!file.FileProperties.Exists(x => x.ColumnName.ToLower() == col.ToLower())&&!stopdup)
                 {
-                    message = $"{datafile.Name} contains incorrect column headers. They must be {data[0]}.";
+                    stopdup = true;
+                    messages.Add($"{datafile.Name} contains incorrect column headers. They must be {colheadermsg}.");
                 }
 
             }
-
-            
+            stopdup = false;
 
             //check siteid in file with what was provided in the form post to the API
             foreach (var s in data)
             {                //first col of every line should be the siteid
                 if (!(s.Split(",")[0].ToLower() == form.SiteID.ToLower()))
-                {
-                    message = $"The siteid values in {datafile.Name} do not match the Siteid in the form.";
+                {                    
+                    messages.Add($"The siteid values in {datafile.Name} do not match the Siteid in the form.");
                 }
 
                 var row = s.Split(",").ToList();
                 int colcnt = 0;
                 FileProperties fcp;
+                stopdup = false;
                 foreach (string c in row)
                 {
                     //every property of a column from the database
                     fcp = file.FileProperties.Find(x => x.ColumnName == colheaders[colcnt]);
 
-                    //validate no nulls
-                    if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
-                        message = $"{datafile.Name} contains missing or null values in column {colheaders[colcnt]}. Use -2 to indicate missing data.";
-
-                    //validate datatypes are ok  
-                    //validate ranges in fields in each datatype test as well.  Max and Min can be
-                    //date, int, etc..
-                    switch (fcp.DataType.ToLower())
+                    if (fcp != null)
                     {
-                        case "string":
 
-                            if (fcp.ValueList != null)
-                            {
-                                if(!fcp.ValueList.Split("|").ToList().Exists(x => x==c))
-                                    message = $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are not found in the list {fcp.ValueList.Replace("|",", ")}";
-                            }
+                        //validate no nulls
+                        if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
+                            messages.Add($"{datafile.Name} contains missing or null values in column {colheaders[colcnt]}. Use -2 to indicate missing data.");
 
+                        //validate datatypes are ok  
+                        //validate ranges in fields in each datatype test as well.  Max and Min can be
+                        //date, int, etc..
+                        switch (fcp.DataType.ToLower())
+                        {
+                            case "string":
 
-                            break;
-                        case "date":
-                            if (!Helpers.DateValidation.IsValidDate(c) == true)
-                                message = $"The dates in column {fcp.ColumnName} in {datafile.FileName } must be in the format YYYY-MM-DD";
-                            else if (!Helpers.DateValidation.DateRange(c, fcp.MaxValue, fcp.MinValue))
-                                message = $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}";
-
-                            break;
-                        case "int":
-                            int parsedResult;
-                            if (!int.TryParse(c, out parsedResult))
-                            {
-                                message = $"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}";
-                            }
-                            else if (!Helpers.RangeValidation.IntRanges(parsedResult, fcp.MaxValue, fcp.MaxValue))
-                            { message = $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] valid ranges."; }
+                                if (fcp.ValueList != null)
+                                {
+                                    if (!fcp.ValueList.Split("|").ToList().Exists(x => x == c))
+                                        messages.Add($"There are values in column {fcp.ColumnName} in {datafile.FileName} that are not found in the list {fcp.ValueList.Replace("|", ", ")}");
+                                }
 
 
-                            break;
-                        case "real":
-                            float f;
-                            if (!float.TryParse(c, out f))
-                                message = $"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}";
-                            else if (!Helpers.RangeValidation.FloatRanges(f, fcp.MaxValue, fcp.MaxValue))
-                            { message = $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}"; }
+                                break;
+                            case "date":
+                                if (!Helpers.DateValidation.IsValidDate(c) == true&&!stopdup)
+                                {
+                                    stopdup = true;
+                                    messages.Add($"The dates in column {fcp.ColumnName} in {datafile.FileName } must be in the format YYYY-MM-DD");
+                                }
+                                else if (!Helpers.DateValidation.DateRange(c, fcp.MaxValue, fcp.MinValue))
+                                    messages.Add($"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}");
+
+                                break;
+                            case "int":
+                                int parsedResult;
+                                if (!int.TryParse(c, out parsedResult))
+                                {
+                                    messages.Add($"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
+                                }
+                                else if (!Helpers.RangeValidation.IntRanges(parsedResult, fcp.MaxValue, fcp.MinValue))
+                                { messages.Add($"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] valid ranges."); }
 
 
-                            break;
+                                break;
+                            case "real":
+                                float f;
+                                if (!float.TryParse(c, out f))
+                                    messages.Add($"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
+                                else if (!Helpers.RangeValidation.FloatRanges(f, fcp.MaxValue, fcp.MinValue))
+                                { messages.Add($"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}"); }
+
+
+                                break;
+
+                        }
 
                     }
-
-
-
-
-
-
-
 
                     colcnt++;
                 }
 
 
+            }
 
-
-
-
-
-
+            if (messages.Count() == 0)
+            {
+                file.Valid = true;             
+                _files.Add(file);
             }
 
 
-
-
-            //If 
-            _files.Add(file);
-
-            return message;
+                return messages;
 
         }
 

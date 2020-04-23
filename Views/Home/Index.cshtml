@@ -10,7 +10,7 @@ Harvard Medical School
 */
         //Basket is _all_files.  I upload it all with the
         //header json data (email,comments), to the API all at once.
-        var _all_files = new FormData();
+        var _all_files = {}; //new FormData();
         var _tmp_file;
         var _status = 25;
         var _prefix = "";//"4ce\\";
@@ -18,15 +18,17 @@ Harvard Medical School
 
         function readURL(files) {
             //add only one file to the basket at a time.
-            for (var i = 0; i < files.files.length; i++) {
-                _all_files.delete(files.files[i].name);
-                _all_files.append(files.files[i].name, files.files[i]);
-                $("#file-list").append(AddFileRow(files.files[i].name));
+            var name = "";
+            for (var i = 0; i < files.files.length; i++) {                
+                name = files.files[i].name.replace(" ", "").toLowerCase();//no spaces in file names
+                delete _all_files[name];
+                _all_files[name] = files.files[i];
+                AddFileRow(name); 
             }
         }
 
         function AddFileRow(id) {
-            var rowid = id.replace(".", "");
+            var rowid = id.replace(".", "");            
             var button = "<button onclick=\"removerow('" + rowid + "');\" type=\"button\" class=\"close\" aria-label=\"Close\">" +
                 "<span aria-hidden=\"true\">&times;</span>" +
                 "</button>";
@@ -37,8 +39,9 @@ Harvard Medical School
         function removerow(id) {
             $("#" + id).remove();
             //add the period back to remove it from the collection
-            id = id.toLowerCase().replace("csv", ".csv");
-            _all_files.delete(id);
+            id = id.toLowerCase().replace("csv", ".csv");   
+            
+           delete _all_files[id];
         }
         function ValidateBatchHeader() {
 
@@ -56,7 +59,7 @@ Harvard Medical School
                 ProjectID: projectid
             });
             _tmp_file = data;
-            _all_files.delete("batchHeader");
+           delete _all_files["batchHeader"];
             $("#div-messages").html("");
             $.ajax({
                 type: "POST",
@@ -70,7 +73,7 @@ Harvard Medical School
                     var rtn = message;
 
                     if (rtn.valid) {
-                        _all_files.append("batchHeader", _tmp_file);
+                        _all_files["batchHeader"] = _tmp_file;
                         $("#cmd-process-batch").prop('disabled', false);
                     } else {
                         $("#cmd-process-batch").prop('disabled', true);
@@ -100,12 +103,16 @@ Harvard Medical School
     
         function ProcessBatch() {
 
+            var formdata = new FormData();
+            for (var key in _all_files) {
+                formdata.append(key, _all_files[key]);
+            }
             $.ajax({
                 type: "POST",
                 url: _prefix + "home/UploadFiles",
                 contentType: false,
                 processData: false,
-                data: _all_files,
+                data: formdata,
                 success: function (message) {
                     $("#div-messages").html("");
 
@@ -113,18 +120,19 @@ Harvard Medical School
                     if (rtn.valid) {
                         $("#div-messages").attr("style", "color:#009900");
                         for (var msg of rtn.messages) {
-                            $("#div-messages").append("<div>" + msg + "</div>");
+                            $("#div-messages").append("<div class=\"div-message\">" + msg + "</div>");
                         }
                         $("#file-list").remove();
                         $('input:text').val('');
                         $("input[type=button]").attr("disabled", "disabled");
                         _all_files = null;
 
+
                     } else {
                         $("#div-messages").attr("style", "color:#990000");
                         $("#div-messages").html("Your files could not be processed…");
                         for (var msg of rtn.messages) {
-                            $("#div-messages").append("<div>" + msg + "</div>");
+                            $("#div-messages").append("<div class=\"div-message\">" + msg + "</div>");
                         }
                     }
                 },
