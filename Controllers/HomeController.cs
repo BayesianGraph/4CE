@@ -331,53 +331,9 @@ namespace i2b2_csv_loader.Controllers
                 return messages;
 
         }
-
-        //DropBox
-        private async Task<long> BurnFileAsync(Models.Files file)
-        {
-
-            //DateTime dt = DateTime.Now;
-            //string folder_date = $"{dt.Month}-{dt.Day}-{dt.Year}";
-
-            long size = 0;
-
-            //using (var dbx = new DropboxClient(_configuration.GetSection("Dropbox")["key"]))
-            //{
-            //    //var full = await dbx.Users.GetCurrentAccountAsync();
-            //    //Console.WriteLine("{0} - {1}", full.Name.DisplayName, full.Email);
-
-            //    string directory = $"/uploadedfiles/{file.FileProperties.site_id}";
-            //    string directory_sub = $"/{file.FileProperties.site_id}_{Convert.ToInt32(file.FileProperties.version):D6}_{folder_date}";
-
-            //    try
-            //    {
-            //        await CreateFolder(dbx, directory);
-            //        await CreateFolder(dbx, directory + directory_sub);
-            //        MemoryStream stream = new MemoryStream();
-            //        await file.File.CopyToAsync(stream);
-            //        size = file.File.Length;
-            //        await Upload(dbx, directory + directory_sub, file.FileProperties.file_name, stream);
-            //    }
-            //    catch (ApiException<Dropbox.Api.Files.GetMetadataError> e)
-            //    {
-            //        if (e.ErrorResponse.IsPath && e.ErrorResponse.AsPath.Value.IsNotFound)
-            //        {
-            //            Console.WriteLine("Nothing found at path.");
-            //        }
-            //        else
-            //        {
-            //            // different issue; handle as desired
-            //            Console.WriteLine(e);
-            //        }
-            //    }
-
-            //}
-
-            return size;
-        }
+    
         private static async Task<FolderMetadata> CreateFolder(DropboxClient client, string path)
-        {
-            Console.WriteLine("--- Creating Folder ---");
+        {            
             var folderArg = new CreateFolderArg(path, false);
             if (!FolderExists(client, path))
             {
@@ -404,13 +360,19 @@ namespace i2b2_csv_loader.Controllers
         }
         async Task Upload(DropboxClient dbx, string folder, string file, MemoryStream mem)
         {
+            try
+            {
+                mem.Position = 0;
+                var updated = await dbx.Files.UploadAsync(
+                    folder + "/" + file,
+                    WriteMode.Overwrite.Instance,
+                    body: mem);
+                Console.WriteLine("Saved {0}/{1} rev {2}", folder, file, updated.Rev);
+            }catch(Exception ex)
+            {
 
-            var updated = await dbx.Files.UploadAsync(
-                folder + "/" + file,
-                WriteMode.Overwrite.Instance,
-                body: mem);
-            Console.WriteLine("Saved {0}/{1} rev {2}", folder, file, updated.Rev);
-
+                Console.WriteLine(ex.Message);
+            }
         }
 
 
@@ -427,60 +389,6 @@ namespace i2b2_csv_loader.Controllers
             return rtn.Substring(0, rtn.Length - 2);
 
         }
-
-
-
-
-
-        //DataIO
-        //public string AddInstance(Models.BatchHead head)
-        //{
-        //    string version = "";
-        //    try
-        //    {
-        //        using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
-        //        {
-        //            db.Open();
-        //            var p = new DynamicParameters();
-        //            p.Add("@site_id", head.SiteID, dbType: DbType.String);
-        //            p.Add("@person_name", head.PersonsName, dbType: DbType.String);
-        //            p.Add("@email", head.Email, dbType: DbType.String);
-        //            p.Add("@comments", head.Comments, dbType: DbType.String);
-
-        //            version = db.Query<string>("sp_add_instance", p, commandType: CommandType.StoredProcedure).Single().ToString();
-
-        //        }
-        //    }
-        //    catch (SqlException ex)
-        //    {
-        //        return ex.Message;
-        //    }
-
-        //    return version;
-        //}
-        //public bool SaveFile(Models.FileProperties file)
-        //{
-        //    try
-        //    {
-        //        using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
-        //        {
-        //            db.Open();
-        //            var p = new DynamicParameters();
-        //            p.Add("@site_id", file.site_id, dbType: DbType.String);
-        //            p.Add("@file_name", file.file_name, dbType: DbType.String);
-        //            p.Add("@file_type", file.file_type, dbType: DbType.String);
-        //            p.Add("@file_size", file.file_size, dbType: DbType.String);
-        //            p.Add("@version", file.version, dbType: DbType.String);
-        //            db.Execute("sp_add_file", p, commandType: CommandType.StoredProcedure);
-
-        //        }
-        //    }
-        //    catch (SqlException)
-        //    {
-        //        return false;
-        //    }
-        //    return true;
-        //}
 
 
         public System.Guid StartUpload(string projectID, string siteID, string personName, string email)
@@ -516,43 +424,43 @@ namespace i2b2_csv_loader.Controllers
                     }
                     if (r.ArchiveFileName2 != null)
                     {
-                        _files[0].ArchiveFileName = r.ArchiveFileName2;
-                        _files[0].LatestFileName = r.LatestFileName2;
+                        _files[1].ArchiveFileName = r.ArchiveFileName2;
+                        _files[1].LatestFileName = r.LatestFileName2;
                     }
                     if (r.ArchiveFileName3 != null)
                     {
-                        _files[0].ArchiveFileName = r.ArchiveFileName3;
-                        _files[0].LatestFileName = r.LatestFileName3;
+                        _files[2].ArchiveFileName = r.ArchiveFileName3;
+                        _files[2].LatestFileName = r.LatestFileName3;
                     }
                     if (r.ArchiveFileName4 != null)
                     {
-                        _files[0].ArchiveFileName = r.ArchiveFileName4;
-                        _files[0].LatestFileName = r.LatestFileName4;
+                        _files[3].ArchiveFileName = r.ArchiveFileName4;
+                        _files[3].LatestFileName = r.LatestFileName4;
                     }
                     if (r.ArchiveFileName5 != null)
                     {
-                        _files[0].ArchiveFileName = r.ArchiveFileName5;
-                        _files[0].LatestFileName = r.LatestFileName5;
+                        _files[4].ArchiveFileName = r.ArchiveFileName5;
+                        _files[4].LatestFileName = r.LatestFileName5;
                     }
                     if (r.ArchiveFileName6 != null)
                     {
-                        _files[0].ArchiveFileName = r.ArchiveFileName6;
-                        _files[0].LatestFileName = r.LatestFileName6;
+                        _files[5].ArchiveFileName = r.ArchiveFileName6;
+                        _files[5].LatestFileName = r.LatestFileName6;
                     }
                     if (r.ArchiveFileName7 != null)
                     {
-                        _files[0].ArchiveFileName = r.ArchiveFileName7;
-                        _files[0].LatestFileName = r.LatestFileName7;
+                        _files[6].ArchiveFileName = r.ArchiveFileName7;
+                        _files[6].LatestFileName = r.LatestFileName7;
                     }
                     if (r.ArchiveFileName8 != null)
                     {
-                        _files[0].ArchiveFileName = r.ArchiveFileName8;
-                        _files[0].LatestFileName = r.LatestFileName8;
+                        _files[7].ArchiveFileName = r.ArchiveFileName8;
+                        _files[7].LatestFileName = r.LatestFileName8;
                     }
                     if (r.ArchiveFileName9 != null)
                     {
-                        _files[0].ArchiveFileName = r.ArchiveFileName9;
-                        _files[0].LatestFileName = r.LatestFileName9;
+                        _files[8].ArchiveFileName = r.ArchiveFileName9;
+                        _files[8].LatestFileName = r.LatestFileName9;
                     }
                     uploadID = r.UploadID;
                 }
@@ -664,9 +572,14 @@ namespace i2b2_csv_loader.Controllers
                     else
                     {
                         // different issue; handle as desired
-                        Console.WriteLine(e);
+                        Console.WriteLine(e.Message );
                         return false;
                     }
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+
                 }
 
             }
@@ -703,6 +616,7 @@ namespace i2b2_csv_loader.Controllers
                     {
                         MemoryStream stream = new MemoryStream();
                         await file.File.CopyToAsync(stream);
+                        stream.Position = 0;
                         await Upload(dbx, directory, file.LatestFileName, stream);
                     }
                 }
@@ -720,6 +634,7 @@ namespace i2b2_csv_loader.Controllers
                         return false;
                     }
                 }
+                catch(Exception ex) { Console.WriteLine(ex.Message); }
 
             }
             try
