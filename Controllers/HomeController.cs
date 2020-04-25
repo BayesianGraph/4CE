@@ -85,9 +85,9 @@ namespace i2b2_csv_loader.Controllers
             if (rm.messages.Count() != 0) { return Json(rm); }
 
             System.Guid UploadID = StartUpload(form);
-           
+
             foreach (var file in _files)
-            { 
+            {
                 UploadFileDataToDatabase(UploadID, file);
             }
             tmpmessages = new List<string>();
@@ -149,8 +149,8 @@ namespace i2b2_csv_loader.Controllers
             if (batch.SiteID.Trim() == "")
                 rm.messages.Add("SiteID field required.");
 
- //           if (batch.ProjectID.Trim() == "")
- //               rm.messages.Add("Please select project from dropdown.");
+            //           if (batch.ProjectID.Trim() == "")
+            //               rm.messages.Add("Please select project from dropdown.");
 
             rm.valid = (rm.messages.Count == 0 ? true : false);
 
@@ -168,8 +168,7 @@ namespace i2b2_csv_loader.Controllers
                 FileID = fileID,
                 Valid = false
             };
-
-            bool stopdup = false;
+                        
 
             _projectfiles = GetProjectFiles(form.ProjectID);
 
@@ -178,11 +177,11 @@ namespace i2b2_csv_loader.Controllers
             file.FileProperties = GetFileProperties(form.ProjectID, fileID);
 
             //Check that the name of the file exists in a given project
-            if (!_projectfiles.Exists(f => f.FileID.ToLower() == fileID) ||file.FileProperties.Count()==0)
+            if (!_projectfiles.Exists(f => f.FileID.ToLower() == fileID) || file.FileProperties.Count() == 0)
             {
-                messages.Add($"{datafile.Name} has the incorrect name. It must start with one of the following words: {ConvertToFileString(_projectfiles)}");
-            }           
-            
+                MessageValidationManager.Check(ref messages, $"{datafile.Name} has the incorrect name. It must start with one of the following words: {ConvertToFileString(_projectfiles)}");
+            }
+
             //Raw text data in lists of srings
             List<string> data = CSVReader.ReadFormFile(datafile);
             List<string> colheaders = CSVReader.ParseLine(data[0]);
@@ -192,47 +191,59 @@ namespace i2b2_csv_loader.Controllers
             data.Remove(data[0]);
 
             //check the number of cols are a match with what comes back from the DB file properties
-            if (!(colheaders.Count() == file.FileProperties.Count())&&file.FileProperties.Count()!=0)
+            if (!(colheaders.Count() == file.FileProperties.Count()) && file.FileProperties.Count() != 0)
             {
-                messages.Add($"{datafile.Name} contains {CSVReader.ParseLine(data[0]).Count()} columns, but {file.FileProperties.Count()} where expected.");
+                MessageValidationManager.Check(ref messages, $"{datafile.Name} contains {CSVReader.ParseLine(data[0]).Count()} columns, but {file.FileProperties.Count()} where expected.");
             }
 
 
             //check the col names match with what comes back from teh DB file properties
             foreach (string col in colheaders)
             {
-                if (!file.FileProperties.Exists(x => x.ColumnName.ToLower() == col.ToLower())&&!stopdup)
-                {
-                    stopdup = true;
-                    messages.Add($"{datafile.Name} contains incorrect column headers. They must be {colheadermsg}.");
-                }
+                if (!file.FileProperties.Exists(x => x.ColumnName.ToLower() == col.ToLower()))
+                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains incorrect column headers. They must be {colheadermsg}.");
 
             }
-            stopdup = false;
+
 
             //check siteid in file with what was provided in the form post to the API
             foreach (var s in data)
             {                //first col of every line should be the siteid
                 if (!(CSVReader.ParseLine(s)[0].ToLower() == form.SiteID.ToLower()))
-                {                    
-                    messages.Add($"The siteid values in {datafile.Name} do not match the Siteid in the form.");
-                }
+                    MessageValidationManager.Check(ref messages, $"The siteid values in {datafile.Name} do not match the Siteid in the form.");
+
 
                 var row = CSVReader.ParseLine(s);
                 int colcnt = 0;
-                FileProperties fcp;
-                stopdup = false;
+                FileProperties fcp = new FileProperties();
+
+                if(file.FileProperties.Count()!=colheaders.Count())
+                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains too many columns. Expected {file.FileProperties.Count()} and you supplied {colheaders.Count()}.");
+                else                
                 foreach (string c in row)
                 {
-                    //every property of a column from the database
-                    fcp = file.FileProperties.Find(x => x.ColumnName == colheaders[colcnt]);
+                    try
+                    {                        //every property of a column from the database
+                        fcp = file.FileProperties.Find(x => x.ColumnName == colheaders[colcnt]);
+                    }
+                    catch
+                    {
+                            try
+                            {
+                                MessageValidationManager.Check(ref messages, $"{datafile.Name} contains missing column {colheaders[colcnt]}. Use -2 with correct column header to indicate missing data.");
+                            }
+                            catch
+                            {
+                                MessageValidationManager.Check(ref messages, $"{datafile.Name} contains too many columns. Expects {file.FileProperties.Count()}");
+                            }
+                    }
 
                     if (fcp != null)
                     {
 
                         //validate no nulls
                         if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
-                            messages.Add($"{datafile.Name} contains missing or null values in column {colheaders[colcnt]}. Use -2 to indicate missing data.");
+                            MessageValidationManager.Check(ref messages, $"{datafile.Name} contains missing or null values in column {colheaders[colcnt]}. Use -2 to indicate missing data.");
 
                         //validate datatypes are ok  
                         //validate ranges in fields in each datatype test as well.  Max and Min can be
@@ -244,38 +255,40 @@ namespace i2b2_csv_loader.Controllers
                                 if (fcp.ValueList != null)
                                 {
                                     if (!fcp.ValueList.Split("|").ToList().Exists(x => x == c))
-                                        messages.Add($"There are values in column {fcp.ColumnName} in {datafile.FileName} that are not found in the list {fcp.ValueList.Replace("|", ", ")}");
+                                        MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are not found in the list {fcp.ValueList.Replace("|", ", ")}");
                                 }
 
 
                                 break;
                             case "date":
-                                if (!Helpers.DateValidation.IsValidDate(c) == true&&!stopdup)
+                                
+                                if (!Helpers.DateValidation.IsValidDate(c) == true)
                                 {
-                                    stopdup = true;
-                                    messages.Add($"The dates in column {fcp.ColumnName} in {datafile.FileName } must be in the format YYYY-MM-DD");
+                                    MessageValidationManager.Check(ref messages, $"The dates in column {fcp.ColumnName} in {datafile.FileName } must be in the format YYYY-MM-DD");
+
                                 }
                                 else if (!Helpers.DateValidation.DateRange(c, fcp.MaxValue, fcp.MinValue))
-                                    messages.Add($"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}");
-
+                                {
+                                    MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}");
+                                }
                                 break;
                             case "int":
                                 int parsedResult;
                                 if (!int.TryParse(c, out parsedResult))
                                 {
-                                    messages.Add($"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
+                                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
                                 }
                                 else if (!Helpers.RangeValidation.IntRanges(parsedResult, fcp.MaxValue, fcp.MinValue))
-                                { messages.Add($"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] valid ranges."); }
+                                { MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] valid ranges."); }
 
 
                                 break;
                             case "real":
                                 float f;
                                 if (!float.TryParse(c, out f))
-                                    messages.Add($"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
+                                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
                                 else if (!Helpers.RangeValidation.FloatRanges(f, fcp.MaxValue, fcp.MinValue))
-                                { messages.Add($"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}"); }
+                                { MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}"); }
 
 
                                 break;
@@ -292,17 +305,17 @@ namespace i2b2_csv_loader.Controllers
 
             if (messages.Count() == 0)
             {
-                file.Valid = true;             
+                file.Valid = true;
                 _files.Add(file);
             }
 
 
-                return messages;
+            return messages;
 
         }
-    
+
         private static async Task<FolderMetadata> CreateFolder(DropboxClient client, string path)
-        {            
+        {
             var folderArg = new CreateFolderArg(path, false);
             if (!FolderExists(client, path))
             {
@@ -337,7 +350,8 @@ namespace i2b2_csv_loader.Controllers
                     WriteMode.Overwrite.Instance,
                     body: mem);
                 Console.WriteLine("Saved {0}/{1} rev {2}", folder, file, updated.Rev);
-            }catch(Exception ex)
+            }
+            catch (Exception ex)
             {
 
                 Console.WriteLine(ex.Message);
@@ -447,7 +461,7 @@ namespace i2b2_csv_loader.Controllers
             List<string> lines = CSVReader.ReadFormFile(dataFile.File);
             lines.Remove(lines[0]);
             int i = 1;
-            foreach(string line in lines)
+            foreach (string line in lines)
             {
                 UploadLineDataToDatabase(UploadID, dataFile.FileID, i, line);
                 i++;
@@ -484,7 +498,7 @@ namespace i2b2_csv_loader.Controllers
             {
                 return false;
             }
-            
+
             return true;
         }
 
@@ -502,7 +516,7 @@ namespace i2b2_csv_loader.Controllers
                     p.Add("@Status", "", dbType: DbType.String, ParameterDirection.Output);
                     List<ValidateDataModel> l = new List<ValidateDataModel>();
                     l = db.Query<ValidateDataModel>("[dbo].[uspValidateData]", p, commandType: CommandType.StoredProcedure).ToList();
-                    foreach(ValidateDataModel v in l)
+                    foreach (ValidateDataModel v in l)
                     {
                         retVal.Add(v.error);
                     }
@@ -541,11 +555,11 @@ namespace i2b2_csv_loader.Controllers
                     else
                     {
                         // different issue; handle as desired
-                        Console.WriteLine(e.Message );
+                        Console.WriteLine(e.Message);
                         return false;
                     }
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     Console.WriteLine(ex.Message);
 
@@ -603,7 +617,7 @@ namespace i2b2_csv_loader.Controllers
                         return false;
                     }
                 }
-                catch(Exception ex) { Console.WriteLine(ex.Message); }
+                catch (Exception ex) { Console.WriteLine(ex.Message); }
 
             }
             try

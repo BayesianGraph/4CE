@@ -13,7 +13,7 @@ Harvard Medical School
         var _all_files = {}; //new FormData();
         var _tmp_file;
         var _status = 25;
-        var _prefix = "";//"4ce\\";
+        var _prefix = "4ce\\";
 
 
         function readURL(files) {
@@ -25,6 +25,8 @@ Harvard Medical School
                 _all_files[name] = files.files[i];
                 AddFileRow(name); 
             }
+            
+            $("#upload-button").show("slow");
         }
 
         function AddFileRow(id) {
@@ -158,6 +160,7 @@ Harvard Medical School
         $(document).ready(function () {
 
             $("#upload-row").hide();
+            $("#upload-button").hide();
 
             $("#sel-projects").on("change", function () {
                 $("#div-files").html("");
@@ -173,8 +176,7 @@ Harvard Medical School
                             $("#div-files").append(", ");
                         }
                         $("#div-files").html($("#div-files").html().substring(0, $("#div-files").html().length - 2));
-                        $("#upload-row").show('slow');
-
+                        $("#upload-row").show('slow');                        
                     },
                     error: function (message) {
                         _tmp_file = null;
@@ -206,9 +208,9 @@ Harvard Medical School
         function updatestatusbar() {
             var bar =  setInterval(function () {
                 _status = _status + 10;
-                if (_status > 100) { clearInterval(bar);}
+                if (_status > 100) { _status = 10;}
                 $(".w3-green").css("width", _status + "%")
-            }, 1000);
+            }, 2000);
         }
 
     </script>
@@ -226,7 +228,7 @@ Harvard Medical School
                     <h5>Your name</h5>
                 </div>
                 <div class="col">
-                    <input type="text" class="form-control" id="PersonsName" maxlength="200" name="PersonsName" value="James" />
+                    <input type="text" class="form-control" id="PersonsName" maxlength="200" name="PersonsName" value="" />
                 </div>
             </div>
             <div class="row">
@@ -234,7 +236,7 @@ Harvard Medical School
                     <h5>Email</h5>
                 </div>
                 <div class="col">
-                    <input type="text" class="form-control" id="Email" maxlength="100" name="Email" value="j@j.com" />
+                    <input type="text" class="form-control" id="Email" maxlength="100" name="Email" value="" />
                 </div>
             </div>
             <div class="row">
@@ -242,7 +244,7 @@ Harvard Medical School
                     <h5>SiteID</h5>
                 </div>
                 <div class="col-xs-5">
-                    <input type="text" class="form-control" id="SiteID" maxlength="20" name="SiteID" value="bidmc" />
+                    <input type="text" class="form-control" id="SiteID" maxlength="20" name="SiteID" value="" />
                 </div>
             </div>
             <div class="row">
@@ -278,7 +280,7 @@ Harvard Medical School
                     <div id="file-list"></div>
                 </div>                
             </div>
-            <div class="row">
+            <div class="row" id="upload-button">
                 <div class="col-1">
                     <input type="button" class="button" onclick="ProcessBatch()" onmouseover="ValidateBatchHeader();" id="cmd-process-batch" value="Upload and Validate" />
                 </div>
