@@ -73,12 +73,16 @@ namespace i2b2_csv_loader.Controllers
             List<string> tmpmessages;
             foreach (var file in files)
             {
-                tmpmessages = new List<string>();
-                tmpmessages = ValidateFile(file, form);
+                if (!file.Name.Contains(".csv"))
+                    rm.messages.Add("Not a valid file format. Must be .csv.");
+                else
+                {
+                    tmpmessages = new List<string>();
+                    tmpmessages = ValidateFile(file, form);
 
-                foreach (string s in tmpmessages)
-                    rm.messages.Add(s);
-
+                    foreach (string s in tmpmessages)
+                        rm.messages.Add(s);
+                }
             }
 
             //if there are errors in the files then return to the client and do not start upload
@@ -181,6 +185,8 @@ namespace i2b2_csv_loader.Controllers
             {
                 MessageValidationManager.Check(ref messages, $"{datafile.Name} has the incorrect name. It must start with one of the following words: {ConvertToFileString(_projectfiles)}");
             }
+
+
 
             //Raw text data in lists of srings
             List<string> data = CSVReader.ReadFormFile(datafile);
