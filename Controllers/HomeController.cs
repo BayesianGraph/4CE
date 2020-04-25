@@ -81,11 +81,17 @@ namespace i2b2_csv_loader.Controllers
 
             }
 
-            
+
 
             if (rm.messages.Count() == 0) {
+                StartUploadResults sur = StartUpload(form.ProjectID, form.SiteID, form.PersonsName, form.Email);
+                foreach (var file in _files)
+                {
+                    UploadFileDataToDatabase(sur.UploadID, file);
+                }
+
                 rm.valid = true;// do the upload junk and write to dropbox
-                rm.messages.Add($"{files.Count()} file{(files.Count()>1?"s are":" is")} valid and uploaded.");
+                rm.messages.Add($"{files.Count()} file{(files.Count() > 1 ? "s are" : " is")} valid and uploaded.");
             }
             else { return Json(rm); }
 
@@ -94,8 +100,6 @@ namespace i2b2_csv_loader.Controllers
 
             //if (rm.messages.Count == 0)
             //{
-
-
             //    {
             //        long uploadsize = 0;
             //        foreach (Models.Files file in _files)
@@ -152,8 +156,8 @@ namespace i2b2_csv_loader.Controllers
             if (batch.SiteID.Trim() == "")
                 rm.messages.Add("SiteID field required.");
 
-            if (batch.ProjectID.Trim() == "")
-                rm.messages.Add("Please select project from dropdown.");
+ //           if (batch.ProjectID.Trim() == "")
+ //               rm.messages.Add("Please select project from dropdown.");
 
             rm.valid = (rm.messages.Count == 0 ? true : false);
 
@@ -162,10 +166,13 @@ namespace i2b2_csv_loader.Controllers
         }
         private List<string> ValidateFile(IFormFile datafile, BatchHead form)
         {
+            string fileID = datafile.Name.Split("-")[0].ToLower();
+
             Models.Files file = new Files
             {
                 File = datafile,
                 FileProperties = new List<FileProperties>(),
+                FileID = fileID,
                 Valid = false
             };
 
@@ -175,19 +182,17 @@ namespace i2b2_csv_loader.Controllers
 
             List<string> messages = new List<string>();
 
-            string filename = datafile.Name.Split("-")[0].ToLower();
-
-            file.FileProperties = GetFileProperties(form.ProjectID, filename);
+            file.FileProperties = GetFileProperties(form.ProjectID, fileID);
 
             //Check that the name of the file exists in a given project
-            if (!_projectfiles.Exists(f => f.FileID.ToLower() == filename)||file.FileProperties.Count()==0)
+            if (!_projectfiles.Exists(f => f.FileID.ToLower() == fileID) ||file.FileProperties.Count()==0)
             {
                 messages.Add($"{datafile.Name} has the incorrect name. It must start with one of the following words: {ConvertToFileString(_projectfiles)}");
             }           
             
             //Raw text data in lists of srings
             List<string> data = CSVReader.ReadFormFile(datafile);
-            List<string> colheaders = data[0].Split(",").ToList();
+            List<string> colheaders = CSVReader.ParseLine(data[0]);
             string colheadermsg = data[0];
 
             //remove the col headers from the data;
@@ -196,7 +201,7 @@ namespace i2b2_csv_loader.Controllers
             //check the number of cols are a match with what comes back from the DB file properties
             if (!(colheaders.Count() == file.FileProperties.Count())&&file.FileProperties.Count()!=0)
             {
-                messages.Add($"{datafile.Name} contains {data[0].Split(",").Count()} columns, but {file.FileProperties.Count()} where expected.");
+                messages.Add($"{datafile.Name} contains {CSVReader.ParseLine(data[0]).Count()} columns, but {file.FileProperties.Count()} where expected.");
             }
 
 
@@ -215,12 +220,12 @@ namespace i2b2_csv_loader.Controllers
             //check siteid in file with what was provided in the form post to the API
             foreach (var s in data)
             {                //first col of every line should be the siteid
-                if (!(s.Split(",")[0].ToLower() == form.SiteID.ToLower()))
+                if (!(CSVReader.ParseLine(s)[0].ToLower() == form.SiteID.ToLower()))
                 {                    
                     messages.Add($"The siteid values in {datafile.Name} do not match the Siteid in the form.");
                 }
 
-                var row = s.Split(",").ToList();
+                var row = CSVReader.ParseLine(s);
                 int colcnt = 0;
                 FileProperties fcp;
                 stopdup = false;
@@ -452,6 +457,92 @@ namespace i2b2_csv_loader.Controllers
         //    }
         //    return true;
         //}
+
+
+        public StartUploadResults StartUpload(string projectID, string siteID, string personName, string email)
+        {
+            StartUploadResults retVal = null;
+            try
+            {
+                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
+                {
+                    db.Open();
+                    var p = new DynamicParameters();
+                    p.Add("@ProjectID", projectID, dbType: DbType.String);
+                    p.Add("@SiteID", siteID, dbType: DbType.String);
+                    p.Add("@PersonName", personName, dbType: DbType.String);
+                    p.Add("@Email", email, dbType: DbType.String);
+
+                    int i = 1;
+                    foreach (Models.Files file in _files)
+                    {
+                        p.Add("@OriginalFileName" + i, file.File.Name, dbType: DbType.String);
+                        p.Add("@FileID" + i, file.FileID, dbType: DbType.String);
+                        i++;
+                        if (i >= 9) break;
+                    }
+                    p.Add("Status", "", dbType: DbType.String, ParameterDirection.Output);
+                    List<StartUploadResults> l = new List<StartUploadResults>();
+                    l = db.Query<StartUploadResults>("[dbo].[uspStartUpload]", p, commandType: CommandType.StoredProcedure).ToList();
+                    retVal = l.First();
+                }
+            }
+            catch (Exception e)
+            {
+                return null;
+            }
+            return retVal;
+        }
+
+
+        public bool UploadFileDataToDatabase(System.Guid UploadID, Files dataFile)
+        {
+            List<string> lines = CSVReader.ReadFormFile(dataFile.File);
+            lines.Remove(lines[0]);
+            int i = 1;
+            foreach(string line in lines)
+            {
+                UploadLineDataToDatabase(UploadID, dataFile.FileID, i, line);
+                i++;
+            }
+            return true;
+        }
+
+        public bool UploadLineDataToDatabase(System.Guid UploadID, string fileID, int lineNum, string line)
+        {
+            try
+            {
+                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
+                {
+                    db.Open();
+                    var p = new DynamicParameters();
+                    p.Add("@UploadID", UploadID, dbType: DbType.Guid);
+                    p.Add("@FileID", fileID, dbType: DbType.String);
+                    p.Add("@LineNumber", lineNum, dbType: DbType.Int32);
+
+                    List<string> cols = CSVReader.ParseLine(line);
+                    int i = 1;
+                    foreach (string col in cols)
+                    {
+                        p.Add("@Col" + i, col, dbType: DbType.String);
+                        i++;
+                        if (i >= 19) break;
+                    }
+                    p.Add("Status", "", dbType: DbType.String, ParameterDirection.Output);
+                    List<StartUploadResults> l = new List<StartUploadResults>();
+                    db.Execute("[dbo].[uspLoadData]", p, commandType: CommandType.StoredProcedure);
+                }
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+            
+            return true;
+        }
+
+
+
         public List<ProjectModel> GetProjects()
         {
             List<ProjectModel> pm = new List<ProjectModel>();
@@ -465,7 +556,7 @@ namespace i2b2_csv_loader.Controllers
 
                 }
             }
-            catch (SqlException)
+            catch (SqlException e)
             {
                 return pm;
             }

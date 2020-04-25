@@ -20,5 +20,10 @@ namespace i2b2_csv_loader.Helpers
                 return  filedata;
             }
         }
+
+        public static List<string> ParseLine(string line)
+        {
+            return line.Split(",").ToList();
+        }
     }
 }

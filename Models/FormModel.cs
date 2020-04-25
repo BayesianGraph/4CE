@@ -8,6 +8,7 @@ namespace i2b2_csv_loader.Models
         public IFormFile File { get; set; }
         public List<FileProperties> FileProperties { get; set; }     
         public bool Valid { get; set; }
+        public string FileID { get; set; }
     }
     public class FileProperties
     {
