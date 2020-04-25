@@ -122,9 +122,13 @@ Harvard Medical School
                         for (var msg of rtn.messages) {
                             $("#div-messages").append("<div class=\"div-message\">" + msg + "</div>");
                         }
-                        $("#file-list").remove();
+                        
                         $('input:text').val('');
                         $("input[type=button]").attr("disabled", "disabled");
+                        $("#cmd-process-batch").remove();
+                        $("#upload-row").remove();
+                        $("#file-list").remove();
+
                         _all_files = null;
 
 
@@ -153,6 +157,8 @@ Harvard Medical School
 
         $(document).ready(function () {
 
+            $("#upload-row").hide();
+
             $("#sel-projects").on("change", function () {
                 $("#div-files").html("");
                 $.ajax({
@@ -167,7 +173,7 @@ Harvard Medical School
                             $("#div-files").append(", ");
                         }
                         $("#div-files").html($("#div-files").html().substring(0, $("#div-files").html().length - 2));
-
+                        $("#upload-row").show('slow');
 
                     },
                     error: function (message) {
@@ -270,8 +276,7 @@ Harvard Medical School
                         <input type="file" class="file-upload" id="files" name="files" multiple accept="*.csv">
                     </label>
                     <div id="file-list"></div>
-                </div>
-                
+                </div>                
             </div>
             <div class="row">
                 <div class="col-1">

@@ -81,13 +81,13 @@ namespace i2b2_csv_loader.Controllers
 
             }
 
-
+            //if there are errors in the files then return to the client and do not start upload
             if (rm.messages.Count() != 0) { return Json(rm); }
 
-            System.Guid UploadID = StartUpload(form.ProjectID, form.SiteID, form.PersonsName, form.Email);
-
+            System.Guid UploadID = StartUpload(form);
+           
             foreach (var file in _files)
-            {
+            { 
                 UploadFileDataToDatabase(UploadID, file);
             }
             tmpmessages = new List<string>();
@@ -114,39 +114,8 @@ namespace i2b2_csv_loader.Controllers
                 return Json(rm);
             }
 
-
             rm.valid = true;// do the upload junk and write to dropbox
             rm.messages.Add($"{files.Count()} file{(files.Count() > 1 ? "s are" : " is")} valid and uploaded.");
-
-
-
-
-
-            //if (rm.messages.Count == 0)
-            //{
-            //    {
-            //        long uploadsize = 0;
-            //        foreach (Models.Files file in _files)
-            //        {
-
-            //            uploadsize = await BurnFileAsync(file); //Writes it to disk/dropbox/google docs.
-
-            //            //if (!this.SaveFile(file.FileProperties)) //writes it to DB
-            //            //{
-            //            //   // rm.messages.Add($"{file.FileProperties.file_name} was not saved to the database.");
-            //            //}
-
-            //        }
-
-            //        string message = $"{files.Count} file(s) /{uploadsize} bytes uploaded successfully!";
-            //        rm.messages.Add(message);
-            //        rm.valid = true;
-            //    }
-            //    else
-            //    {
-            //        rm.messages.Add("Site ID Version is not valid.");
-            //    }
-            //}
 
             return Json(rm);
 
@@ -391,7 +360,7 @@ namespace i2b2_csv_loader.Controllers
         }
 
 
-        public System.Guid StartUpload(string projectID, string siteID, string personName, string email)
+        public System.Guid StartUpload(BatchHead form)
         {
             System.Guid uploadID;
             try
@@ -400,10 +369,10 @@ namespace i2b2_csv_loader.Controllers
                 {
                     db.Open();
                     var p = new DynamicParameters();
-                    p.Add("@ProjectID", projectID, dbType: DbType.String);
-                    p.Add("@SiteID", siteID, dbType: DbType.String);
-                    p.Add("@PersonName", personName, dbType: DbType.String);
-                    p.Add("@Email", email, dbType: DbType.String);
+                    p.Add("@ProjectID", form.ProjectID, dbType: DbType.String);
+                    p.Add("@SiteID", form.SiteID, dbType: DbType.String);
+                    p.Add("@PersonName", form.PersonsName, dbType: DbType.String);
+                    p.Add("@Email", form.Email, dbType: DbType.String);
 
                     int i = 1;
                     foreach (Models.Files file in _files)
