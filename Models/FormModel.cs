@@ -9,6 +9,8 @@ namespace i2b2_csv_loader.Models
         public List<FileProperties> FileProperties { get; set; }     
         public bool Valid { get; set; }
         public string FileID { get; set; }
+        public string ArchiveFileName { get; set; }
+        public string LatestFileName { get; set; }
     }
     public class FileProperties
     {

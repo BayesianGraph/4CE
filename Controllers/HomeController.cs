@@ -82,18 +82,42 @@ namespace i2b2_csv_loader.Controllers
             }
 
 
+            if (rm.messages.Count() != 0) { return Json(rm); }
 
-            if (rm.messages.Count() == 0) {
-                StartUploadResults sur = StartUpload(form.ProjectID, form.SiteID, form.PersonsName, form.Email);
-                foreach (var file in _files)
-                {
-                    UploadFileDataToDatabase(sur.UploadID, file);
-                }
+            System.Guid UploadID = StartUpload(form.ProjectID, form.SiteID, form.PersonsName, form.Email);
 
-                rm.valid = true;// do the upload junk and write to dropbox
-                rm.messages.Add($"{files.Count()} file{(files.Count() > 1 ? "s are" : " is")} valid and uploaded.");
+            foreach (var file in _files)
+            {
+                UploadFileDataToDatabase(UploadID, file);
             }
-            else { return Json(rm); }
+            tmpmessages = new List<string>();
+            tmpmessages = ValidateData(UploadID);
+
+            foreach (string s in tmpmessages)
+                rm.messages.Add(s);
+            if (rm.messages.Count() != 0) { return Json(rm); }
+
+            bool test = false;
+            Task<bool> saveToArchiveTask = SaveToArchive(UploadID);
+            test = await saveToArchiveTask;
+            if (!test)
+            {
+                rm.messages.Add("Failure Saving File to Archive");
+                return Json(rm);
+            }
+
+            Task<bool> saveToLatestTask = SaveToLatest(UploadID);
+            test = await saveToLatestTask;
+            if (!test)
+            {
+                rm.messages.Add("Failure Saving File to Latest");
+                return Json(rm);
+            }
+
+
+            rm.valid = true;// do the upload junk and write to dropbox
+            rm.messages.Add($"{files.Count()} file{(files.Count() > 1 ? "s are" : " is")} valid and uploaded.");
+
 
 
 
@@ -459,9 +483,9 @@ namespace i2b2_csv_loader.Controllers
         //}
 
 
-        public StartUploadResults StartUpload(string projectID, string siteID, string personName, string email)
+        public System.Guid StartUpload(string projectID, string siteID, string personName, string email)
         {
-            StartUploadResults retVal = null;
+            System.Guid uploadID;
             try
             {
                 using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
@@ -484,14 +508,60 @@ namespace i2b2_csv_loader.Controllers
                     p.Add("Status", "", dbType: DbType.String, ParameterDirection.Output);
                     List<StartUploadResults> l = new List<StartUploadResults>();
                     l = db.Query<StartUploadResults>("[dbo].[uspStartUpload]", p, commandType: CommandType.StoredProcedure).ToList();
-                    retVal = l.First();
+                    StartUploadResults r = l.First();
+                    if (r.ArchiveFileName1 != null)
+                    {
+                        _files[0].ArchiveFileName = r.ArchiveFileName1;
+                        _files[0].LatestFileName = r.LatestFileName1;
+                    }
+                    if (r.ArchiveFileName2 != null)
+                    {
+                        _files[0].ArchiveFileName = r.ArchiveFileName2;
+                        _files[0].LatestFileName = r.LatestFileName2;
+                    }
+                    if (r.ArchiveFileName3 != null)
+                    {
+                        _files[0].ArchiveFileName = r.ArchiveFileName3;
+                        _files[0].LatestFileName = r.LatestFileName3;
+                    }
+                    if (r.ArchiveFileName4 != null)
+                    {
+                        _files[0].ArchiveFileName = r.ArchiveFileName4;
+                        _files[0].LatestFileName = r.LatestFileName4;
+                    }
+                    if (r.ArchiveFileName5 != null)
+                    {
+                        _files[0].ArchiveFileName = r.ArchiveFileName5;
+                        _files[0].LatestFileName = r.LatestFileName5;
+                    }
+                    if (r.ArchiveFileName6 != null)
+                    {
+                        _files[0].ArchiveFileName = r.ArchiveFileName6;
+                        _files[0].LatestFileName = r.LatestFileName6;
+                    }
+                    if (r.ArchiveFileName7 != null)
+                    {
+                        _files[0].ArchiveFileName = r.ArchiveFileName7;
+                        _files[0].LatestFileName = r.LatestFileName7;
+                    }
+                    if (r.ArchiveFileName8 != null)
+                    {
+                        _files[0].ArchiveFileName = r.ArchiveFileName8;
+                        _files[0].LatestFileName = r.LatestFileName8;
+                    }
+                    if (r.ArchiveFileName9 != null)
+                    {
+                        _files[0].ArchiveFileName = r.ArchiveFileName9;
+                        _files[0].LatestFileName = r.LatestFileName9;
+                    }
+                    uploadID = r.UploadID;
                 }
             }
             catch (Exception e)
             {
-                return null;
+                return new System.Guid();
             }
-            return retVal;
+            return uploadID;
         }
 
 
@@ -541,6 +611,135 @@ namespace i2b2_csv_loader.Controllers
             return true;
         }
 
+
+        public List<string> ValidateData(System.Guid UploadID)
+        {
+            List<string> retVal = new List<string>();
+            try
+            {
+                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
+                {
+                    db.Open();
+                    var p = new DynamicParameters();
+                    p.Add("@UploadID", UploadID, dbType: DbType.Guid);
+                    p.Add("@Status", "", dbType: DbType.String, ParameterDirection.Output);
+                    List<ValidateDataModel> l = new List<ValidateDataModel>();
+                    l = db.Query<ValidateDataModel>("[dbo].[uspValidateData]", p, commandType: CommandType.StoredProcedure).ToList();
+                    foreach(ValidateDataModel v in l)
+                    {
+                        retVal.Add(v.error);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                return null;
+            }
+            return retVal;
+        }
+
+        async Task<bool> SaveToArchive(System.Guid UploadID)
+        {
+            using (var dbx = new DropboxClient(_configuration.GetSection("Dropbox")["key"]))
+            {
+                string directory = $"/archive";
+
+                try
+                {
+                    await CreateFolder(dbx, directory);
+                    foreach (Models.Files file in _files)
+                    {
+                        MemoryStream stream = new MemoryStream();
+                        await file.File.CopyToAsync(stream);
+                        await Upload(dbx, directory, file.ArchiveFileName, stream);
+                    }
+                }
+                catch (ApiException<Dropbox.Api.Files.GetMetadataError> e)
+                {
+                    if (e.ErrorResponse.IsPath && e.ErrorResponse.AsPath.Value.IsNotFound)
+                    {
+                        Console.WriteLine("Nothing found at path.");
+                        return false;
+                    }
+                    else
+                    {
+                        // different issue; handle as desired
+                        Console.WriteLine(e);
+                        return false;
+                    }
+                }
+
+            }
+            try
+            {
+                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
+                {
+                    db.Open();
+                    var p = new DynamicParameters();
+                    p.Add("@UploadID", UploadID, dbType: DbType.Guid);
+                    p.Add("@Status", "", dbType: DbType.String, ParameterDirection.Output);
+                    List<ValidateDataModel> l = new List<ValidateDataModel>();
+                    db.Execute("[uspConfirmSaved]", p, commandType: CommandType.StoredProcedure);
+                }
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+            return true;
+        }
+
+
+        async Task<bool> SaveToLatest(System.Guid UploadID)
+        {
+            using (var dbx = new DropboxClient(_configuration.GetSection("Dropbox")["key"]))
+            {
+                string directory = $"/latest";
+
+                try
+                {
+                    await CreateFolder(dbx, directory);
+                    foreach (Models.Files file in _files)
+                    {
+                        MemoryStream stream = new MemoryStream();
+                        await file.File.CopyToAsync(stream);
+                        await Upload(dbx, directory, file.LatestFileName, stream);
+                    }
+                }
+                catch (ApiException<Dropbox.Api.Files.GetMetadataError> e)
+                {
+                    if (e.ErrorResponse.IsPath && e.ErrorResponse.AsPath.Value.IsNotFound)
+                    {
+                        Console.WriteLine("Nothing found at path.");
+                        return false;
+                    }
+                    else
+                    {
+                        // different issue; handle as desired
+                        Console.WriteLine(e);
+                        return false;
+                    }
+                }
+
+            }
+            try
+            {
+                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
+                {
+                    db.Open();
+                    var p = new DynamicParameters();
+                    p.Add("@UploadID", UploadID, dbType: DbType.Guid);
+                    List<ValidateDataModel> l = new List<ValidateDataModel>();
+                    db.Execute("[dbo].[uspFinishUpload]", p, commandType: CommandType.StoredProcedure);
+
+                }
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+            return true;
+        }
 
 
         public List<ProjectModel> GetProjects()
