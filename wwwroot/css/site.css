@@ -145,7 +145,7 @@ form {
 
 .close {
     float: left !important;
-    margin-right:5px;
+    margin-right: 5px;
 }
 
 #div-files {
@@ -153,11 +153,11 @@ form {
 }
 
 #div-messages {
-    margin-top: 5px;
-    font-weight: bold;    
+    margin-top: 5px;    
 }
-.div-message{
-    margin:5px;
+
+.div-message {
+    margin: 5px;
 }
 
 input[type=file] {
@@ -167,13 +167,35 @@ input[type=file] {
 #file-list {
     display: inline-grid;
 }
-#cmd-process-batch{
-    margin-top:100px;
+
+#cmd-process-batch {
+    margin-top: 20px;
+    background-color:#3170ad;
+    color:#ffffff;
 }
-#upload-row{
-    margin-top:25px;
+
+.file-list-container {
+    display: inline-grid;
 }
-.file-list-container{
-    display:inline-grid;
+
+#pic {
+    width: 95px;
 }
-#pic{width:95px;}
+
+.display-2 {
+    font-size: 3.0rem !important;
+    font-weight: bold;
+    color: #3170ad;
+    margin-bottom: 20px !important;
+}
+
+.col-7 {
+    margin-top: 8px !important;
+}
+.messages-label{
+ margin-top: 20px;
+}
+.messages-label-text {
+    font-weight: bold;   
+    color: #990000;
+}

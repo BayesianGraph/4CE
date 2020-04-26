@@ -14,9 +14,9 @@ Harvard Medical School
         var _all_files = {}; //new FormData(); FormData methods dont work in IE, so I changed it to an OBJ
         var _tmp_file;
         var _status = 25;
-        var _prefix = "";//"4ce\\";
-
-
+        var _prefix = "4CE\\";
+        
+    
         function readURL(files) {
             //add only one file to the basket at a time.
             var name = "";
@@ -25,9 +25,8 @@ Harvard Medical School
                 delete _all_files[name];
                 _all_files[name] = files.files[i];
                 AddFileRow(name); 
-            }
+            }            
             
-            $("#upload-button").show("slow");
         }
 
         function AddFileRow(id) {
@@ -47,7 +46,7 @@ Harvard Medical School
            delete _all_files[id];
         }
         function ValidateBatchHeader() {
-            
+            $(".messages-label").hide(); 
             var personsname = $("#PersonsName").val();
             var email = $("#Email").val();
             var siteid = $("#SiteID").val();
@@ -72,24 +71,25 @@ Harvard Medical School
                 dataType: "json",
                 data: data,
                 success: function (message) {
-                    $("#div-messages").attr("style", "color:#009900");
+                    
                     var rtn = message;
 
                     if (rtn.valid) {
                         _all_files["batchHeader"] = _tmp_file;
                         $("#cmd-process-batch").prop('disabled', false);
                     } else {
+                        $(".messages-label").show();    
                         $("#cmd-process-batch").prop('disabled', true);
-                        $("#div-messages").attr("style", "color:#990000");
+                        
                         for (var msg of rtn.messages) {
                             $("#div-messages").append("<div>" + msg + "</div>");
                         }
                     }
-
+                    
                 },
                 error: function (message) {
-                    $("#div-messages").attr("style", "color:#990000");
-                    $("#validation").html("There was error validating your information!");
+                    $(".messages-label").show();                    
+                    $("#div-messages").html("There was error validating your information!");
                 },
                 beforeSend: function () {
                     
@@ -105,7 +105,7 @@ Harvard Medical School
         }
     
         function ProcessBatch() {
-
+            $(".messages-label").hide();
             var formdata = new FormData();
             for (var key in _all_files) {
                 formdata.append(key, _all_files[key]);
@@ -121,25 +121,24 @@ Harvard Medical School
 
                     var rtn = message;
                     if (rtn.valid) {
-                        $("#div-messages").attr("style", "color:#009900");
+                        
                         for (var msg of rtn.messages) {
-                            $("#div-messages").append("<div class=\"div-message\">" + msg + "</div>");
+                            $("#div-messages").append("<li>" + msg + "</li>");
                         }
                         
                         $('input:text').val('');
                         $("input[type=button]").attr("disabled", "disabled");
                         $("#cmd-process-batch").remove();
-                        $("#upload-row").remove();
+                       
                         $("#file-list").remove();
 
                         _all_files = null;
 
 
                     } else {
-                        $("#div-messages").attr("style", "color:#990000");
-                        $("#div-messages").html("Your files could not be processed…");
+                        $(".messages-label").show();                        
                         for (var msg of rtn.messages) {
-                            $("#div-messages").append("<div class=\"div-message\">" + msg + "</div>");
+                            $("#div-messages").append("<li>" + msg + "</li>");
                         }
                     }
                 },
@@ -159,33 +158,12 @@ Harvard Medical School
         }
 
         $(document).ready(function () {
+            $(".messages-label").hide();
+          
+            
 
-            $("#upload-row").hide();
-            $("#upload-button").hide();
-
-            $("#sel-projects").on("change", function () {
-                $("#div-files").html("");
-                $.ajax({
-                    type: "POST",
-                    url: _prefix + "home/GetFileIDs/" + $("#sel-projects").val(),
-                    contentType: false,
-                    processData: false,
-                    success: function (message) {
-
-                        for (var msg of message) {
-                            $("#div-files").append(msg.fileID);
-                            $("#div-files").append(", ");
-                        }
-                        $("#div-files").html($("#div-files").html().substring(0, $("#div-files").html().length - 2));
-                        $("#upload-row").show('slow');                        
-                    },
-                    error: function (message) {
-                        _tmp_file = null;
-                        $("#validation").html("There was error uploading files!");
-                    }
-
-                });
-
+            $("#sel-projects").on("change", function () {               
+                getprojects()
             });
 
             $(".form-control").focusin(function () {
@@ -196,8 +174,33 @@ Harvard Medical School
                 readURL(this);
             });
 
+            getprojects();
         });
 
+        function getprojects() {
+            $("#div-files").html("");
+            $.ajax({
+                type: "POST",
+                url: _prefix + "home/GetFileIDs/" + $("#sel-projects").val(),
+                contentType: false,
+                processData: false,
+                success: function (message) {
+                    $("#div-files").append("<b>Expected files</b>: ");
+                    for (var msg of message) {
+                        $("#div-files").append(msg.fileID + ".csv");
+                        $("#div-files").append(", ");
+                    }
+                    $("#div-files").html($("#div-files").html().substring(0, $("#div-files").html().length - 2));
+
+                },
+                error: function (message) {
+                    _tmp_file = null;
+                    $("#validation").html("There was error uploading files!");
+                }
+
+            });
+
+        }
         function getstatusbar() {
             var bar = "<div class=\"w3-border\">" +
                 "<div class=\"w3-green\" style=\"height:24px;width:20%\"></div>" +
@@ -220,10 +223,7 @@ Harvard Medical School
         <div class="container">
             <div class="row">
                 <h1 class="display-2">4CE Data Upload Tool</h1>
-            </div>
-            <div class="row" style="margin-bottom:25px;">
-                <h5>Please submit the following information and provide your files for validation and upload.</h5>
-            </div>
+            </div>           
             <div class="row">
                 <div class="col-2">
                     <h5>Your name</h5>
@@ -247,6 +247,9 @@ Harvard Medical School
                 <div class="col-xs-5">
                     <input type="text" class="form-control" id="SiteID" maxlength="20" name="SiteID" value="" />
                 </div>
+                <div class="col-7">
+                    (up to 20 letters or numbers, starting with a letter, no spaces or special characters)
+                </div>
             </div>
             <div class="row">
                 <div class="col-2">
@@ -261,7 +264,7 @@ Harvard Medical School
                     <h5>Project</h5>
                 </div>
                 <div class="col">
-                    @Html.DropDownList("Projects", null, "Select Project", htmlAttributes: new { @class = "form-control", @id = "sel-projects" })
+                    @Html.DropDownList("Projects", null, null, htmlAttributes: new { @class = "form-control", @id = "sel-projects" })
                 </div>
             </div>
 
@@ -287,10 +290,10 @@ Harvard Medical School
                 </div>
             </div>
             <div class="row">
-                <div class="col">
-                    <div id="div-messages">
-                       
-                    </div>
+                <div class="col messages-label">                    
+                    <span class="messages-label-text">Your files could not be processed…</span>
+                    <ol id="div-messages">
+                    </ol>
                 </div>
             </div>
 

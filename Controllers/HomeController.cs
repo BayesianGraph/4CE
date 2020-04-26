@@ -43,7 +43,7 @@ namespace i2b2_csv_loader.Controllers
         }
         #endregion
         #region "POST Methods"
-        
+
         [HttpPost]
         public async Task<IActionResult> UploadFilesAsync()
         {
@@ -153,6 +153,12 @@ namespace i2b2_csv_loader.Controllers
 
             if (batch.SiteID.Trim() == "")
                 rm.messages.Add("SiteID field required.");
+            else
+            if (batch.SiteID.Trim().Any(ch => !Char.IsLetterOrDigit(ch)) || batch.SiteID.Trim().Contains(" ") || batch.SiteID.Substring(0, 1).Any(ch => !Char.IsLetter(ch)))
+                rm.messages.Add("SiteID must be up to 20 letters or numbers, starting with a letter, and with no spaces or special characters.");
+
+
+
 
             //           if (batch.ProjectID.Trim() == "")
             //               rm.messages.Add("Please select project from dropdown.");
@@ -173,7 +179,7 @@ namespace i2b2_csv_loader.Controllers
                 FileID = fileID,
                 Valid = false
             };
-                        
+
 
             _projectfiles = GetProjectFiles(form.ProjectID);
 
@@ -184,138 +190,139 @@ namespace i2b2_csv_loader.Controllers
             //Check that the name of the file exists in a given project
             if (!_projectfiles.Exists(f => f.FileID.ToLower() == fileID) || file.FileProperties.Count() == 0)
             {
-                MessageValidationManager.Check(ref messages, $"{datafile.Name} has the incorrect name. It must start with one of the following words: {ConvertToFileString(_projectfiles)}");
-            }
-
-
-
-            //Raw text data in lists of srings
-            List<string> data = CSVReader.ReadFormFile(datafile);
-            List<string> colheaders = CSVReader.ParseLine(data[0]);
-            string colheadermsg = data[0];
-
-            //remove the col headers from the data;
-            data.Remove(data[0]);
-
-            //check the number of cols are a match with what comes back from the DB file properties
-            if (!(colheaders.Count() == file.FileProperties.Count()) && file.FileProperties.Count() != 0)
-            {
-                MessageValidationManager.Check(ref messages, $"{datafile.Name} contains {CSVReader.ParseLine(data[0]).Count()} columns, but {file.FileProperties.Count()} where expected.");
-            }
-
-
-            //check the col names match with what comes back from teh DB file properties
-            foreach (string col in colheaders)
-            {
-                if (!file.FileProperties.Exists(x => x.ColumnName.ToLower() == col.ToLower()))
-                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains incorrect column headers. They must be {colheadermsg}.");
-
-            }
-
-
-            //check siteid in file with what was provided in the form post to the API
-            foreach (var s in data)
-            {                //first col of every line should be the siteid
-                if (!(CSVReader.ParseLine(s)[0].ToLower() == form.SiteID.ToLower()))
-                    MessageValidationManager.Check(ref messages, $"The siteid values in {datafile.Name} do not match the Siteid in the form.");
-
-
-                var row = CSVReader.ParseLine(s);
-                int colcnt = 0;
-                FileProperties fcp = new FileProperties();
-
-                if(file.FileProperties.Count()!=colheaders.Count())
-                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains too many columns. Expected {file.FileProperties.Count()} and you supplied {colheaders.Count()}.");
-                else                
-                foreach (string c in row)
-                {
-                    try
-                    {                        //every property of a column from the database
-                        fcp = file.FileProperties.Find(x => x.ColumnName == colheaders[colcnt]);
-                    }
-                    catch
-                    {
-                            try
-                            {
-                                MessageValidationManager.Check(ref messages, $"{datafile.Name} contains missing column {colheaders[colcnt]}. Use -999 with correct column header to indicate missing data.");
-                            }
-                            catch
-                            {
-                                MessageValidationManager.Check(ref messages, $"{datafile.Name} contains too many columns. Expects {file.FileProperties.Count()}");
-                            }
-                    }
-
-                    if (fcp != null)
-                    {
-
-                        //validate no nulls
-                        if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
-                            MessageValidationManager.Check(ref messages, $"{datafile.Name} contains missing or null values in column {colheaders[colcnt]}. Use -999 to indicate missing data.");
-
-                        //validate datatypes are ok  
-                        //validate ranges in fields in each datatype test as well.  Max and Min can be
-                        //date, int, etc..
-                        switch (fcp.DataType.ToLower())
-                        {
-                            case "string":
-
-                                if (fcp.ValueList != null)
-                                {
-                                    if (!fcp.ValueList.Split("|").ToList().Exists(x => x == c))
-                                        MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are not found in the list {fcp.ValueList.Replace("|", ", ")}");
-                                }
-
-
-                                break;
-                            case "date":
-                                
-                                if (!Helpers.DateValidation.IsValidDate(c) == true)
-                                {
-                                    MessageValidationManager.Check(ref messages, $"The dates in column {fcp.ColumnName} in {datafile.FileName } must be in the format YYYY-MM-DD");
-
-                                }
-                                else if (!Helpers.DateValidation.DateRange(c, fcp.MaxValue, fcp.MinValue))
-                                {
-                                    MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}");
-                                }
-                                break;
-                            case "int":
-                                int parsedResult;
-                                if (!int.TryParse(c, out parsedResult))
-                                {
-                                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
-                                }
-                                else if (!Helpers.RangeValidation.IntRanges(parsedResult, fcp.MaxValue, fcp.MinValue))
-                                { MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] valid ranges."); }
-
-
-                                break;
-                            case "real":
-                                float f;
-                                if (!float.TryParse(c, out f))
-                                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
-                                else if (!Helpers.RangeValidation.FloatRanges(f, fcp.MaxValue, fcp.MinValue))
-                                { MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}"); }
-
-
-                                break;
-
-                        }
-
-                    }
-
-                    colcnt++;
-                }
-
-
+                MessageValidationManager.Check(ref messages, $"{datafile.Name} has an incorrect file name. It must start with one of the following words: {ConvertToFileString(_projectfiles)}");
             }
 
             if (messages.Count() == 0)
             {
-                file.Valid = true;
-                _files.Add(file);
-            }
 
+                //Raw text data in lists of srings
+                List<string> data = CSVReader.ReadFormFile(datafile);
+                List<string> colheaders = CSVReader.ParseLine(data[0]);
+                string colheadermsg = data[0];
+
+                //remove the col headers from the data;
+                data.Remove(data[0]);
+
+                //check the number of cols are a match with what comes back from the DB file properties
+                if (!(colheaders.Count() == file.FileProperties.Count()) && file.FileProperties.Count() != 0)
+                {
+                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains {CSVReader.ParseLine(data[0]).Count()} columns, but {file.FileProperties.Count()} where expected.");
+                }
+
+
+                //check the col names match with what comes back from teh DB file properties
+                foreach (string col in colheaders)
+                {
+                    if (!file.FileProperties.Exists(x => x.ColumnName.ToLower() == col.ToLower()))
+                        MessageValidationManager.Check(ref messages, $"{datafile.Name} contains incorrect column headers. They must be {colheadermsg}.");
+
+                }
+
+
+                //check siteid in file with what was provided in the form post to the API
+                foreach (var s in data)
+                {                //first col of every line should be the siteid
+                    if (!(CSVReader.ParseLine(s)[0].ToLower() == form.SiteID.ToLower()))
+                        MessageValidationManager.Check(ref messages, $"The siteid values in {datafile.Name} do not match the Siteid in the form.");
+
+
+                    var row = CSVReader.ParseLine(s);
+                    int colcnt = 0;
+                    FileProperties fcp = new FileProperties();
+
+                    if (file.FileProperties.Count() != colheaders.Count())
+                        MessageValidationManager.Check(ref messages, $"{datafile.Name} contains too many columns. Expected {file.FileProperties.Count()} and you supplied {colheaders.Count()}.");
+                    else
+                        foreach (string c in row)
+                        {
+                            try
+                            {                        //every property of a column from the database
+                                fcp = file.FileProperties.Find(x => x.ColumnName == colheaders[colcnt]);
+                            }
+                            catch
+                            {
+                                try
+                                {
+                                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains missing column {colheaders[colcnt]}. Use -999 with correct column header to indicate missing data.");
+                                }
+                                catch
+                                {
+                                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains too many columns. Expects {file.FileProperties.Count()}");
+                                }
+                            }
+
+                            if (fcp != null)
+                            {
+
+                                //validate no nulls
+                                if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
+                                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains missing or null values in column {colheaders[colcnt]}. Use -999 to indicate missing data.");
+
+                                //validate datatypes are ok  
+                                //validate ranges in fields in each datatype test as well.  Max and Min can be
+                                //date, int, etc..
+                                switch (fcp.DataType.ToLower())
+                                {
+                                    case "string":
+
+                                        if (fcp.ValueList != null)
+                                        {
+                                            if (!fcp.ValueList.Split("|").ToList().Exists(x => x == c))
+                                                MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are not found in the list {fcp.ValueList.Replace("|", ", ")}");
+                                        }
+
+
+                                        break;
+                                    case "date":
+
+                                        if (!Helpers.DateValidation.IsValidDate(c) == true)
+                                        {
+                                            MessageValidationManager.Check(ref messages, $"The dates in column {fcp.ColumnName} in {datafile.FileName } must be in the format YYYY-MM-DD");
+
+                                        }
+                                        else if (!Helpers.DateValidation.DateRange(c, fcp.MaxValue, fcp.MinValue))
+                                        {
+                                            MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}");
+                                        }
+                                        break;
+                                    case "int":
+                                        int parsedResult;
+                                        if (!int.TryParse(c, out parsedResult))
+                                        {
+                                            MessageValidationManager.Check(ref messages, $"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
+                                        }
+                                        else if (!Helpers.RangeValidation.IntRanges(parsedResult, fcp.MaxValue, fcp.MinValue))
+                                        { MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] valid ranges."); }
+
+
+                                        break;
+                                    case "real":
+                                        float f;
+                                        if (!float.TryParse(c, out f))
+                                            MessageValidationManager.Check(ref messages, $"{datafile.Name} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
+                                        else if (!Helpers.RangeValidation.FloatRanges(f, fcp.MaxValue, fcp.MinValue))
+                                        { MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {datafile.FileName} that are [below|above] {c}"); }
+
+
+                                        break;
+
+                                }
+
+                            }
+
+                            colcnt++;
+                        }
+
+
+                }
+
+                if (messages.Count() == 0)
+                {
+                    file.Valid = true;
+                    _files.Add(file);
+                }
+            }
 
             return messages;
 
@@ -652,6 +659,7 @@ namespace i2b2_csv_loader.Controllers
             {
                 return pm;
             }
+
             return pm;
         }
         public List<ProjectFiles> GetProjectFiles(string projectid)
@@ -671,6 +679,8 @@ namespace i2b2_csv_loader.Controllers
             {
                 return fns;
             }
+
+
             return fns;
 
         }
