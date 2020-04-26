@@ -31,8 +31,8 @@ namespace i2b2_csv_loader.Controllers
         {
             _configuration = configuration;
         }
-        // GET: Home
 
+        #region "GET Method"
         public ActionResult Index()
         {
 
@@ -41,7 +41,9 @@ namespace i2b2_csv_loader.Controllers
 
             return View();
         }
-
+        #endregion
+        #region "POST Methods"
+        
         [HttpPost]
         public async Task<IActionResult> UploadFilesAsync()
         {
@@ -124,7 +126,6 @@ namespace i2b2_csv_loader.Controllers
             return Json(rm);
 
         }
-
         [HttpPost]
         public IActionResult ValidateBatchHeader([FromBody] BatchHead batch)
         {
@@ -138,8 +139,8 @@ namespace i2b2_csv_loader.Controllers
             return Json(GetProjectFiles(projectid));
 
         }
-
-        //Validation 
+        #endregion
+        #region "Validation"
         private IActionResult ValidateForm(BatchHead batch)
         {
             ResponseModel rm = new ResponseModel() { messages = new List<string>() };
@@ -319,7 +320,140 @@ namespace i2b2_csv_loader.Controllers
             return messages;
 
         }
+        public List<string> ValidateData(System.Guid UploadID)
+        {
+            List<string> retVal = new List<string>();
+            try
+            {
+                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
+                {
+                    db.Open();
+                    var p = new DynamicParameters();
+                    p.Add("@UploadID", UploadID, dbType: DbType.Guid);
+                    p.Add("@Status", "", dbType: DbType.String, ParameterDirection.Output);
+                    List<ValidateDataModel> l = new List<ValidateDataModel>();
+                    l = db.Query<ValidateDataModel>("[dbo].[uspValidateData]", p, commandType: CommandType.StoredProcedure).ToList();
+                    foreach (ValidateDataModel v in l)
+                    {
+                        retVal.Add(v.error);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                return null;
+            }
+            return retVal;
+        }
+        #endregion
+        #region "DropBox"
+        async Task<bool> SaveToArchive(System.Guid UploadID)
+        {
+            using (var dbx = new DropboxClient(_configuration.GetSection("Dropbox")["key"]))
+            {
+                string directory = $"/archive";
 
+                try
+                {
+                    await CreateFolder(dbx, directory);
+                    foreach (Models.Files file in _files)
+                    {
+                        MemoryStream stream = new MemoryStream();
+                        await file.File.CopyToAsync(stream);
+                        await Upload(dbx, directory, file.ArchiveFileName, stream);
+                    }
+                }
+                catch (ApiException<Dropbox.Api.Files.GetMetadataError> e)
+                {
+                    if (e.ErrorResponse.IsPath && e.ErrorResponse.AsPath.Value.IsNotFound)
+                    {
+                        Console.WriteLine("Nothing found at path.");
+                        return false;
+                    }
+                    else
+                    {
+                        // different issue; handle as desired
+                        Console.WriteLine(e.Message);
+                        return false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+
+                }
+
+            }
+            try
+            {
+                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
+                {
+                    db.Open();
+                    var p = new DynamicParameters();
+                    p.Add("@UploadID", UploadID, dbType: DbType.Guid);
+                    p.Add("@Status", "", dbType: DbType.String, ParameterDirection.Output);
+                    List<ValidateDataModel> l = new List<ValidateDataModel>();
+                    db.Execute("[uspConfirmSaved]", p, commandType: CommandType.StoredProcedure);
+                }
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+            return true;
+        }
+        async Task<bool> SaveToLatest(System.Guid UploadID)
+        {
+            using (var dbx = new DropboxClient(_configuration.GetSection("Dropbox")["key"]))
+            {
+                string directory = $"/latest";
+
+                try
+                {
+                    await CreateFolder(dbx, directory);
+                    foreach (Models.Files file in _files)
+                    {
+                        MemoryStream stream = new MemoryStream();
+                        await file.File.CopyToAsync(stream);
+                        stream.Position = 0;
+                        await Upload(dbx, directory, file.LatestFileName, stream);
+                    }
+                }
+                catch (ApiException<Dropbox.Api.Files.GetMetadataError> e)
+                {
+                    if (e.ErrorResponse.IsPath && e.ErrorResponse.AsPath.Value.IsNotFound)
+                    {
+                        Console.WriteLine("Nothing found at path.");
+                        return false;
+                    }
+                    else
+                    {
+                        // different issue; handle as desired
+                        Console.WriteLine(e);
+                        return false;
+                    }
+                }
+                catch (Exception ex) { Console.WriteLine(ex.Message); }
+
+            }
+            try
+            {
+                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
+                {
+                    db.Open();
+                    var p = new DynamicParameters();
+                    p.Add("@UploadID", UploadID, dbType: DbType.Guid);
+                    List<ValidateDataModel> l = new List<ValidateDataModel>();
+                    db.Execute("[dbo].[uspFinishUpload]", p, commandType: CommandType.StoredProcedure);
+
+                }
+            }
+            catch (Exception e)
+            {
+                return false;
+            }
+            return true;
+        }
         private static async Task<FolderMetadata> CreateFolder(DropboxClient client, string path)
         {
             var folderArg = new CreateFolderArg(path, false);
@@ -363,8 +497,7 @@ namespace i2b2_csv_loader.Controllers
                 Console.WriteLine(ex.Message);
             }
         }
-
-
+        #endregion
 
         private string ConvertToFileString(List<ProjectFiles> pf)
         {
@@ -378,8 +511,6 @@ namespace i2b2_csv_loader.Controllers
             return rtn.Substring(0, rtn.Length - 2);
 
         }
-
-
         public System.Guid StartUpload(BatchHead form)
         {
             System.Guid uploadID;
@@ -460,8 +591,6 @@ namespace i2b2_csv_loader.Controllers
             }
             return uploadID;
         }
-
-
         public bool UploadFileDataToDatabase(System.Guid UploadID, Files dataFile)
         {
             List<string> lines = CSVReader.ReadFormFile(dataFile.File);
@@ -474,7 +603,6 @@ namespace i2b2_csv_loader.Controllers
             }
             return true;
         }
-
         public bool UploadLineDataToDatabase(System.Guid UploadID, string fileID, int lineNum, string line)
         {
             try
@@ -507,145 +635,6 @@ namespace i2b2_csv_loader.Controllers
 
             return true;
         }
-
-
-        public List<string> ValidateData(System.Guid UploadID)
-        {
-            List<string> retVal = new List<string>();
-            try
-            {
-                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
-                {
-                    db.Open();
-                    var p = new DynamicParameters();
-                    p.Add("@UploadID", UploadID, dbType: DbType.Guid);
-                    p.Add("@Status", "", dbType: DbType.String, ParameterDirection.Output);
-                    List<ValidateDataModel> l = new List<ValidateDataModel>();
-                    l = db.Query<ValidateDataModel>("[dbo].[uspValidateData]", p, commandType: CommandType.StoredProcedure).ToList();
-                    foreach (ValidateDataModel v in l)
-                    {
-                        retVal.Add(v.error);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                return null;
-            }
-            return retVal;
-        }
-
-        async Task<bool> SaveToArchive(System.Guid UploadID)
-        {
-            using (var dbx = new DropboxClient(_configuration.GetSection("Dropbox")["key"]))
-            {
-                string directory = $"/archive";
-
-                try
-                {
-                    await CreateFolder(dbx, directory);
-                    foreach (Models.Files file in _files)
-                    {
-                        MemoryStream stream = new MemoryStream();
-                        await file.File.CopyToAsync(stream);
-                        await Upload(dbx, directory, file.ArchiveFileName, stream);
-                    }
-                }
-                catch (ApiException<Dropbox.Api.Files.GetMetadataError> e)
-                {
-                    if (e.ErrorResponse.IsPath && e.ErrorResponse.AsPath.Value.IsNotFound)
-                    {
-                        Console.WriteLine("Nothing found at path.");
-                        return false;
-                    }
-                    else
-                    {
-                        // different issue; handle as desired
-                        Console.WriteLine(e.Message);
-                        return false;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex.Message);
-
-                }
-
-            }
-            try
-            {
-                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
-                {
-                    db.Open();
-                    var p = new DynamicParameters();
-                    p.Add("@UploadID", UploadID, dbType: DbType.Guid);
-                    p.Add("@Status", "", dbType: DbType.String, ParameterDirection.Output);
-                    List<ValidateDataModel> l = new List<ValidateDataModel>();
-                    db.Execute("[uspConfirmSaved]", p, commandType: CommandType.StoredProcedure);
-                }
-            }
-            catch (Exception e)
-            {
-                return false;
-            }
-            return true;
-        }
-
-
-        async Task<bool> SaveToLatest(System.Guid UploadID)
-        {
-            using (var dbx = new DropboxClient(_configuration.GetSection("Dropbox")["key"]))
-            {
-                string directory = $"/latest";
-
-                try
-                {
-                    await CreateFolder(dbx, directory);
-                    foreach (Models.Files file in _files)
-                    {
-                        MemoryStream stream = new MemoryStream();
-                        await file.File.CopyToAsync(stream);
-                        stream.Position = 0;
-                        await Upload(dbx, directory, file.LatestFileName, stream);
-                    }
-                }
-                catch (ApiException<Dropbox.Api.Files.GetMetadataError> e)
-                {
-                    if (e.ErrorResponse.IsPath && e.ErrorResponse.AsPath.Value.IsNotFound)
-                    {
-                        Console.WriteLine("Nothing found at path.");
-                        return false;
-                    }
-                    else
-                    {
-                        // different issue; handle as desired
-                        Console.WriteLine(e);
-                        return false;
-                    }
-                }
-                catch (Exception ex) { Console.WriteLine(ex.Message); }
-
-            }
-            try
-            {
-                using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
-                {
-                    db.Open();
-                    var p = new DynamicParameters();
-                    p.Add("@UploadID", UploadID, dbType: DbType.Guid);
-                    List<ValidateDataModel> l = new List<ValidateDataModel>();
-                    db.Execute("[dbo].[uspFinishUpload]", p, commandType: CommandType.StoredProcedure);
-
-                }
-            }
-            catch (Exception e)
-            {
-                return false;
-            }
-            return true;
-        }
-
-
         public List<ProjectModel> GetProjects()
         {
             List<ProjectModel> pm = new List<ProjectModel>();
@@ -665,7 +654,6 @@ namespace i2b2_csv_loader.Controllers
             }
             return pm;
         }
-
         public List<ProjectFiles> GetProjectFiles(string projectid)
         {
             List<ProjectFiles> fns = new List<ProjectFiles>();
