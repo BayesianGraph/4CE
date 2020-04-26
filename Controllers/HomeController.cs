@@ -237,7 +237,7 @@ namespace i2b2_csv_loader.Controllers
                     {
                             try
                             {
-                                MessageValidationManager.Check(ref messages, $"{datafile.Name} contains missing column {colheaders[colcnt]}. Use -2 with correct column header to indicate missing data.");
+                                MessageValidationManager.Check(ref messages, $"{datafile.Name} contains missing column {colheaders[colcnt]}. Use -999 with correct column header to indicate missing data.");
                             }
                             catch
                             {
@@ -250,7 +250,7 @@ namespace i2b2_csv_loader.Controllers
 
                         //validate no nulls
                         if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
-                            MessageValidationManager.Check(ref messages, $"{datafile.Name} contains missing or null values in column {colheaders[colcnt]}. Use -2 to indicate missing data.");
+                            MessageValidationManager.Check(ref messages, $"{datafile.Name} contains missing or null values in column {colheaders[colcnt]}. Use -999 to indicate missing data.");
 
                         //validate datatypes are ok  
                         //validate ranges in fields in each datatype test as well.  Max and Min can be
