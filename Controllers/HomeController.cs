@@ -50,6 +50,13 @@ namespace i2b2_csv_loader.Controllers
             var files = Request.Form.Files;
             ResponseModel rm = new ResponseModel() { messages = new List<string>() };
             BatchHead form = new BatchHead();
+            
+
+            if (files.Count() == 0)
+            {
+                rm.messages.Add("Upload must include at least one file.");
+                return Json(rm);
+            }
 
             //check that the json format is correct
             try
@@ -70,6 +77,7 @@ namespace i2b2_csv_loader.Controllers
                 return Json(rm);
             }
 
+            ProjectModel pm = GetProjects().Find(x => x.ProjectID == form.ProjectID);
 
             //validate each file, store the physical files at the end after all have passed validation
             List<string> tmpmessages;
@@ -90,6 +98,7 @@ namespace i2b2_csv_loader.Controllers
             //if there are errors in the files then return to the client and do not start upload
             if (rm.messages.Count() != 0) { return Json(rm); }
 
+
             System.Guid UploadID = StartUpload(form);
 
             foreach (var file in _files)
@@ -101,18 +110,27 @@ namespace i2b2_csv_loader.Controllers
 
             foreach (string s in tmpmessages)
                 rm.messages.Add(s);
+
             if (rm.messages.Count() != 0) { return Json(rm); }
 
             bool test = false;
-            Task<bool> saveToArchiveTask = SaveToArchive(UploadID);
-            test = await saveToArchiveTask;
-            if (!test)
+            try
             {
-                rm.messages.Add("Failure Saving File to Archive");
+                Task<bool> saveToArchiveTask = SaveToArchive(UploadID,pm.FilePath);
+                test = await saveToArchiveTask;
+                if (!test)
+                {
+                    rm.messages.Add("Failure Saving File to Archive");
+                    return Json(rm);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                rm.messages.Add(ex.Message);
                 return Json(rm);
             }
-
-            Task<bool> saveToLatestTask = SaveToLatest(UploadID);
+            Task<bool> saveToLatestTask = SaveToLatest(UploadID,pm.FilePath);
             test = await saveToLatestTask;
             if (!test)
             {
@@ -157,12 +175,6 @@ namespace i2b2_csv_loader.Controllers
             if (batch.SiteID.Trim().Any(ch => !Char.IsLetterOrDigit(ch)) || batch.SiteID.Trim().Contains(" ") || batch.SiteID.Substring(0, 1).Any(ch => !Char.IsLetter(ch)))
                 rm.messages.Add("SiteID must be up to 20 letters or numbers, starting with a letter, and with no spaces or special characters.");
 
-
-
-
-            //           if (batch.ProjectID.Trim() == "")
-            //               rm.messages.Add("Please select project from dropdown.");
-
             rm.valid = (rm.messages.Count == 0 ? true : false);
 
 
@@ -193,13 +205,19 @@ namespace i2b2_csv_loader.Controllers
                 MessageValidationManager.Check(ref messages, $"{datafile.Name} has an incorrect file name. It must start with one of the following words: {ConvertToFileString(_projectfiles)}");
             }
 
+            if (!file.File.FileName.ToLower().Contains(form.SiteID.ToLower().Trim()))
+            {
+                messages.Add("SiteID in file name does not match SiteID in form.");
+            }
+
+
+            //Raw text data in lists of srings
+            List<string> data = CSVReader.ReadFormFile(datafile);
+            List<string> colheaders = CSVReader.ParseLine(data[0]);
+            string colheadermsg = data[0];
+
             if (messages.Count() == 0)
             {
-
-                //Raw text data in lists of srings
-                List<string> data = CSVReader.ReadFormFile(datafile);
-                List<string> colheaders = CSVReader.ParseLine(data[0]);
-                string colheadermsg = data[0];
 
                 //remove the col headers from the data;
                 data.Remove(data[0]);
@@ -211,29 +229,41 @@ namespace i2b2_csv_loader.Controllers
                 }
 
 
-                //check the col names match with what comes back from teh DB file properties
-                foreach (string col in colheaders)
-                {
-                    if (!file.FileProperties.Exists(x => x.ColumnName.ToLower() == col.ToLower()))
-                        MessageValidationManager.Check(ref messages, $"{datafile.Name} contains incorrect column headers. They must be {colheadermsg}.");
+            }
 
-                }
+            if (messages.Count() == 0)
+                if (file.FileProperties.Count() != colheaders.Count())
+                    MessageValidationManager.Check(ref messages, $"{datafile.Name} contains too many columns. Expected {file.FileProperties.Count()} and you supplied {colheaders.Count()}.");
 
 
-                //check siteid in file with what was provided in the form post to the API
+            if (messages.Count() == 0)
                 foreach (var s in data)
                 {                //first col of every line should be the siteid
                     if (!(CSVReader.ParseLine(s)[0].ToLower() == form.SiteID.ToLower()))
                         MessageValidationManager.Check(ref messages, $"The siteid values in {datafile.Name} do not match the Siteid in the form.");
 
+                }
 
+
+            //check the col names match with what comes back from teh DB file properties
+            if (messages.Count() == 0)
+                foreach (string col in colheaders)
+                {
+                    if (!file.FileProperties.Exists(x => x.ColumnName.ToLower() == col.ToLower()))
+                        MessageValidationManager.Check(ref messages, $"{datafile.Name} contains incorrect column headers. They must be {GetColumnList(file.FileProperties)}.");
+
+                }
+
+
+
+            //check siteid in file with what was provided in the form post to the API
+            if (messages.Count() == 0)
+                foreach (var s in data)
+                {
                     var row = CSVReader.ParseLine(s);
                     int colcnt = 0;
                     FileProperties fcp = new FileProperties();
-
-                    if (file.FileProperties.Count() != colheaders.Count())
-                        MessageValidationManager.Check(ref messages, $"{datafile.Name} contains too many columns. Expected {file.FileProperties.Count()} and you supplied {colheaders.Count()}.");
-                    else
+                    if (messages.Count() == 0)
                         foreach (string c in row)
                         {
                             try
@@ -252,9 +282,18 @@ namespace i2b2_csv_loader.Controllers
                                 }
                             }
 
+                        }
+
+                    if (messages.Count() == 0)
+                        foreach (string c in row)
+                        {
+
+                            //every property of a column from the database
+                            fcp = file.FileProperties.Find(x => x.ColumnName == colheaders[colcnt]);
+
+
                             if (fcp != null)
                             {
-
                                 //validate no nulls
                                 if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
                                     MessageValidationManager.Check(ref messages, $"{datafile.Name} contains missing or null values in column {colheaders[colcnt]}. Use -999 to indicate missing data.");
@@ -317,17 +356,18 @@ namespace i2b2_csv_loader.Controllers
 
                 }
 
-                if (messages.Count() == 0)
-                {
-                    file.Valid = true;
-                    _files.Add(file);
-                }
+            if (messages.Count() == 0)
+            {
+                file.Valid = true;
+                _files.Add(file);
             }
+
 
             return messages;
 
         }
-        public List<string> ValidateData(System.Guid UploadID)
+
+        private List<string> ValidateData(System.Guid UploadID)
         {
             List<string> retVal = new List<string>();
             try
@@ -348,17 +388,19 @@ namespace i2b2_csv_loader.Controllers
             }
             catch (Exception e)
             {
-                return null;
+                Console.WriteLine(e.Message);
+                retVal.Add(e.Message);
+                return retVal;
             }
             return retVal;
         }
         #endregion
         #region "DropBox"
-        async Task<bool> SaveToArchive(System.Guid UploadID)
+        async Task<bool> SaveToArchive(System.Guid UploadID, string projectpath)
         {
             using (var dbx = new DropboxClient(_configuration.GetSection("Dropbox")["key"]))
             {
-                string directory = $"/archive";
+                string directory = $"{projectpath}archive";
 
                 try
                 {
@@ -405,15 +447,16 @@ namespace i2b2_csv_loader.Controllers
             }
             catch (Exception e)
             {
+                Console.WriteLine(e.Message);
                 return false;
             }
             return true;
         }
-        async Task<bool> SaveToLatest(System.Guid UploadID)
+        async Task<bool> SaveToLatest(System.Guid UploadID, string projectpath)
         {
             using (var dbx = new DropboxClient(_configuration.GetSection("Dropbox")["key"]))
             {
-                string directory = $"/latest";
+                string directory = $"{projectpath}latest";
 
                 try
                 {
@@ -518,7 +561,19 @@ namespace i2b2_csv_loader.Controllers
             return rtn.Substring(0, rtn.Length - 2);
 
         }
-        public System.Guid StartUpload(BatchHead form)
+        private string GetColumnList(List<FileProperties> fp)
+        {
+
+            string s = "";
+            foreach (FileProperties f in fp)
+            {
+                s += $"{f.ColumnName} ,";
+            }
+            s = s.Substring(0, s.Length - 2);
+
+            return s;
+        }
+        private System.Guid StartUpload(BatchHead form)
         {
             System.Guid uploadID;
             try
@@ -598,7 +653,7 @@ namespace i2b2_csv_loader.Controllers
             }
             return uploadID;
         }
-        public bool UploadFileDataToDatabase(System.Guid UploadID, Files dataFile)
+        private bool UploadFileDataToDatabase(System.Guid UploadID, Files dataFile)
         {
             List<string> lines = CSVReader.ReadFormFile(dataFile.File);
             lines.Remove(lines[0]);
@@ -610,7 +665,7 @@ namespace i2b2_csv_loader.Controllers
             }
             return true;
         }
-        public bool UploadLineDataToDatabase(System.Guid UploadID, string fileID, int lineNum, string line)
+        private bool UploadLineDataToDatabase(System.Guid UploadID, string fileID, int lineNum, string line)
         {
             try
             {
@@ -642,7 +697,7 @@ namespace i2b2_csv_loader.Controllers
 
             return true;
         }
-        public List<ProjectModel> GetProjects()
+        private List<ProjectModel> GetProjects()
         {
             List<ProjectModel> pm = new List<ProjectModel>();
             try
@@ -662,7 +717,7 @@ namespace i2b2_csv_loader.Controllers
 
             return pm;
         }
-        public List<ProjectFiles> GetProjectFiles(string projectid)
+        private List<ProjectFiles> GetProjectFiles(string projectid)
         {
             List<ProjectFiles> fns = new List<ProjectFiles>();
             try
@@ -684,7 +739,7 @@ namespace i2b2_csv_loader.Controllers
             return fns;
 
         }
-        public List<FileProperties> GetFileProperties(string projectid, string fileid)
+        private List<FileProperties> GetFileProperties(string projectid, string fileid)
         {
 
             List<FileProperties> fp = new List<FileProperties>();

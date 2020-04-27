@@ -14,19 +14,20 @@ Harvard Medical School
         var _all_files = {}; //new FormData(); FormData methods dont work in IE, so I changed it to an OBJ
         var _tmp_file;
         var _status = 25;
-        var _prefix = "4CE\\";
+        var _prefix = ""; //"4CE\\";
         
     
         function readURL(files) {
             //add only one file to the basket at a time.
             var name = "";
-            for (var i = 0; i < files.files.length; i++) {                
+            for (var i = 0; i < files.files.length; i++) {                   
                 name = files.files[i].name.replace(" ", "").toLowerCase();//no spaces in file names
-                delete _all_files[name];
-                _all_files[name] = files.files[i];
-                AddFileRow(name); 
-            }            
-            
+                if (name.includes(".csv")) {  //must be a csv file only.  
+                    delete _all_files[name];
+                    _all_files[name] = files.files[i];
+                    AddFileRow(name);
+                }
+            }                        
         }
 
         function AddFileRow(id) {
@@ -121,7 +122,9 @@ Harvard Medical School
 
                     var rtn = message;
                     if (rtn.valid) {
-                        
+                        $(".messages-label").show();
+                        $(".messages-label-text").html("");
+
                         for (var msg of rtn.messages) {
                             $("#div-messages").append("<li>" + msg + "</li>");
                         }
@@ -129,14 +132,15 @@ Harvard Medical School
                         $('input:text').val('');
                         $("input[type=button]").attr("disabled", "disabled");
                         $("#cmd-process-batch").remove();
-                       
+                        $(".file-list-container").remove();
                         $("#file-list").remove();
 
                         _all_files = null;
 
 
                     } else {
-                        $(".messages-label").show();                        
+                        $(".messages-label").show();  
+                        $(".messages-label-text").html("Your files could not be processed…");
                         for (var msg of rtn.messages) {
                             $("#div-messages").append("<li>" + msg + "</li>");
                         }
@@ -144,10 +148,13 @@ Harvard Medical School
                 },
                 error: function (message) {
                     _tmp_file = null;
+                    $(".messages-label").show();
+                    $(".messages-label-text").html("Your files could not be processed…");
                     $("#div-messages").html("There was error uploading files!");
                 },
                 beforeSend: function () {
-                    $("#div-messages").html(getstatusbar());
+                    $(".messages-label").show();
+                    $(".messages-label-text").html(getstatusbar());
                     updatestatusbar();
                 },
                 complete: function () {
@@ -159,8 +166,7 @@ Harvard Medical School
 
         $(document).ready(function () {
             $(".messages-label").hide();
-          
-            
+                      
 
             $("#sel-projects").on("change", function () {               
                 getprojects()
@@ -229,7 +235,7 @@ Harvard Medical School
                     <h5>Your name</h5>
                 </div>
                 <div class="col">
-                    <input type="text" class="form-control" id="PersonsName" maxlength="200" name="PersonsName" value="" />
+                    <input type="text" class="form-control" id="PersonsName" maxlength="200" name="PersonsName" value="j" />
                 </div>
             </div>
             <div class="row">
@@ -237,7 +243,7 @@ Harvard Medical School
                     <h5>Email</h5>
                 </div>
                 <div class="col">
-                    <input type="text" class="form-control" id="Email" maxlength="100" name="Email" value="" />
+                    <input type="text" class="form-control" id="Email" maxlength="100" name="Email" value="j@J.com" />
                 </div>
             </div>
             <div class="row">
@@ -245,7 +251,7 @@ Harvard Medical School
                     <h5>SiteID</h5>
                 </div>
                 <div class="col-xs-5">
-                    <input type="text" class="form-control" id="SiteID" maxlength="20" name="SiteID" value="" />
+                    <input type="text" class="form-control" id="SiteID" maxlength="20" name="SiteID" value="bidmc" />
                 </div>
                 <div class="col-7">
                     (up to 20 letters or numbers, starting with a letter, no spaces or special characters)
@@ -291,7 +297,7 @@ Harvard Medical School
             </div>
             <div class="row">
                 <div class="col messages-label">                    
-                    <span class="messages-label-text">Your files could not be processed…</span>
+                    <span class="messages-label-text"></span>
                     <ol id="div-messages">
                     </ol>
                 </div>
