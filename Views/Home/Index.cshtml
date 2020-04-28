@@ -14,24 +14,24 @@ Harvard Medical School
         var _all_files = {}; //new FormData(); FormData methods dont work in IE, so I changed it to an OBJ
         var _tmp_file;
         var _status = 25;
-        var _prefix = "4CE\\";
+        var _prefix = ""; // "4CE\\";
         
     
-        function readURL(files) {
+        function addFile(files) {
             //add only one file to the basket at a time.
             var name = "";
             for (var i = 0; i < files.files.length; i++) {                   
-                name = files.files[i].name.replace(" ", "").toLowerCase();//no spaces in file names
+                name = files.files[i].name.split(" ").join("");//no spaces in file names
                 if (name.includes(".csv")) {  //must be a csv file only.  
-                    delete _all_files[name];
-                    _all_files[name] = files.files[i];
+                    delete _all_files[name.toLowerCase()];
+                    _all_files[name.toLowerCase()] = files.files[i];
                     AddFileRow(name);
                 }
             }                        
         }
 
         function AddFileRow(id) {
-            var rowid = id.replace(".", "");            
+            var rowid = id.replace(".", "").toLowerCase();            
             var button = "<button onclick=\"removerow('" + rowid + "');\" type=\"button\" class=\"close\" aria-label=\"Close\">" +
                 "<span aria-hidden=\"true\">&times;</span>" +
                 "</button>";
@@ -123,18 +123,13 @@ Harvard Medical School
                     var rtn = message;
                     if (rtn.valid) {
                         $(".messages-label").show();
-                        $(".messages-label-text").html("");
+                        $(".messages-label-text").html("");                        
+                        $(".messages-label-text").attr("style", "color:#009900");
 
                         for (var msg of rtn.messages) {
-                            $("#div-messages").append("<li>" + msg + "</li>");
+                            $(".messages-label-text").append(msg);
                         }
                         
-                        $('input:text').val('');
-                        $("input[type=button]").attr("disabled", "disabled");
-                        $("#cmd-process-batch").remove();
-                        $(".file-list-container").remove();
-                        $("#file-list").remove();
-
                         _all_files = null;
 
 
@@ -177,7 +172,7 @@ Harvard Medical School
             });
 
             $(".file-upload").on('change', function () {
-                readURL(this);
+                addFile(this);
             });
 
             getprojects();
