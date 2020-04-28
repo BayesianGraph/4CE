@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 
 namespace i2b2_csv_loader.Models
-{
+{    
     public class Files
     {        
         public IFormFile File { get; set; }

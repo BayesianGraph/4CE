@@ -9,7 +9,6 @@ namespace i2b2_csv_loader.Models
     {
         public bool valid { get; set; }
         public List<string> messages { get; set; }
-        public int code { get; set; }
-        public Int64 size { get; set; }
+            
     }
 }

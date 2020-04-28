@@ -11,7 +11,9 @@ namespace i2b2_csv_loader.Helpers
         public static bool IsValidDate(string value)
         {
             DateTime tempDate;
-            bool validDate = DateTime.TryParseExact(value, "YYYY-MM-DD", DateTimeFormatInfo.InvariantInfo, DateTimeStyles.None, out tempDate);
+
+            
+            bool validDate = DateTime.TryParseExact(value, "yyyy-mm-dd", DateTimeFormatInfo.InvariantInfo, DateTimeStyles.None, out tempDate);
             if (validDate)
                 return true;
             else
