@@ -14,24 +14,24 @@ Harvard Medical School
         var _all_files = {}; //new FormData(); FormData methods dont work in IE, so I changed it to an OBJ
         var _tmp_file;
         var _status = 25;
-        var _prefix = ""; // "4CE\\";
-        
-    
+        var _prefix = ""; //"4CE\\";
+
+
         function addFile(files) {
             //add only one file to the basket at a time.
             var name = "";
-            for (var i = 0; i < files.files.length; i++) {                   
+            for (var i = 0; i < files.files.length; i++) {
                 name = files.files[i].name.split(" ").join("");//no spaces in file names
-                if (name.includes(".csv")) {  //must be a csv file only.  
+                if (name.includes(".csv")) {  //must be a csv file only.
                     delete _all_files[name.toLowerCase()];
                     _all_files[name.toLowerCase()] = files.files[i];
                     AddFileRow(name);
                 }
-            }                        
+            }
         }
 
         function AddFileRow(id) {
-            var rowid = id.replace(".", "").toLowerCase();            
+            var rowid = id.replace(".", "").toLowerCase();
             var button = "<button onclick=\"removerow('" + rowid + "');\" type=\"button\" class=\"close\" aria-label=\"Close\">" +
                 "<span aria-hidden=\"true\">&times;</span>" +
                 "</button>";
@@ -42,74 +42,86 @@ Harvard Medical School
         function removerow(id) {
             $("#" + id).remove();
             //add the period back to remove it from the collection
-            id = id.toLowerCase().replace("csv", ".csv");   
-            
-           delete _all_files[id];
+            id = id.toLowerCase().replace("csv", ".csv");
+            delete _all_files[id];
+
+
         }
         function ValidateBatchHeader() {
-            $(".messages-label").hide(); 
-            var personsname = $("#PersonsName").val();
-            var email = $("#Email").val();
-            var siteid = $("#SiteID").val();
-            var comments = $("#Comments").val();
-            var projectid = $("#sel-projects").val();
 
-            var data = JSON.stringify({
-                PersonsName: personsname,
-                Email: email,
-                SiteID: siteid,
-                Comments: comments,
-                ProjectID: projectid
-            });
-            _tmp_file = data;
-           delete _all_files["batchHeader"];
-            $("#div-messages").html("");
-            $.ajax({
-                type: "POST",
-                url: _prefix + "home/ValidateBatchHeader",
-                processData: false,
-                contentType: "application/json; charset=utf-8",
-                dataType: "json",
-                data: data,
-                success: function (message) {
-                    
-                    var rtn = message;
+            if (_all_files["batchHeader"]==undefined) {
+                $(".messages-label").hide();
+                var personsname = $("#PersonsName").val();
+                var email = $("#Email").val();
+                var siteid = $("#SiteID").val();
+                var comments = $("#Comments").val();
+                var projectid = $("#sel-projects").val();
 
-                    if (rtn.valid) {
-                        _all_files["batchHeader"] = _tmp_file;
-                        $("#cmd-process-batch").prop('disabled', false);
-                    } else {
-                        $(".messages-label").show();    
-                        $("#cmd-process-batch").prop('disabled', true);
-                        
-                        for (var msg of rtn.messages) {
-                            $("#div-messages").append("<div>" + msg + "</div>");
+                var data = JSON.stringify({
+                    PersonsName: personsname,
+                    Email: email,
+                    SiteID: siteid,
+                    Comments: comments,
+                    ProjectID: projectid
+                });
+                _tmp_file = data;
+                delete _all_files["batchHeader"];
+                $("#div-messages").html("");
+                $.ajax({
+                    type: "POST",
+                    url: _prefix + "home/ValidateBatchHeader",
+                    processData: false,
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    data: data,
+                    success: function (message) {
+
+                        var rtn = message;
+
+                        if (rtn.valid) {
+                            _all_files["batchHeader"] = _tmp_file;
+                            $("#cmd-process-batch").prop('disabled', false);
+                        } else {
+                            $(".messages-label").show();
+                            $("#cmd-process-batch").prop('disabled', true);
+                            for (var msg of rtn.messages) {
+                                $("#div-messages").append("<li>" + msg + "</li>");
+                            }
                         }
+
+                    },
+                    error: function (message) {
+                        $(".messages-label").show();
+                        $("#div-messages").html("There was error validating your information!");
+                    },
+                    beforeSend: function () {
+
+                    },
+                    complete: function () {
+
                     }
-                    
-                },
-                error: function (message) {
-                    $(".messages-label").show();                    
-                    $("#div-messages").html("There was error validating your information!");
-                },
-                beforeSend: function () {
-                    
-                },
-                complete: function () {
-                    
-                }
-            });
+                });
 
 
-            return data;
-
+                return data;
+            }
         }
-    
+
         function ProcessBatch() {
             $(".messages-label").hide();
+
+            $(".messages-label-text").html("");
+            
+            $("#div-messages").html("");
+
+
+
             var formdata = new FormData();
-            for (var key in _all_files) {
-                formdata.append(key, _all_files[key]);
+
+            if (_all_files != undefined) {
+                for (var key in _all_files) {
+                    formdata.append(key, _all_files[key]);
+                }
             }
             $.ajax({
                 type: "POST",
@@ -123,18 +135,18 @@ Harvard Medical School
                     var rtn = message;
                     if (rtn.valid) {
                         $(".messages-label").show();
-                        $(".messages-label-text").html("");                        
+                        $(".messages-label-text").html("");
                         $(".messages-label-text").attr("style", "color:#009900");
 
                         for (var msg of rtn.messages) {
                             $(".messages-label-text").append(msg);
                         }
-                        
+
                         _all_files = null;
 
 
                     } else {
-                        $(".messages-label").show();  
+                        $(".messages-label").show();
                         $(".messages-label-text").html("Your files could not be processed…");
                         for (var msg of rtn.messages) {
                             $("#div-messages").append("<li>" + msg + "</li>");
@@ -153,7 +165,7 @@ Harvard Medical School
                     updatestatusbar();
                 },
                 complete: function () {
-                    
+
                 }
             });
 
@@ -161,9 +173,9 @@ Harvard Medical School
 
         $(document).ready(function () {
             $(".messages-label").hide();
-                      
 
-            $("#sel-projects").on("change", function () {               
+
+            $("#sel-projects").on("change", function () {
                 getprojects()
             });
 
@@ -211,9 +223,9 @@ Harvard Medical School
         }
 
         function updatestatusbar() {
-            var bar =  setInterval(function () {
+            var bar = setInterval(function () {
                 _status = _status + 10;
-                if (_status > 100) { _status = 10;}
+                if (_status > 100) { _status = 10; }
                 $(".w3-green").css("width", _status + "%")
             }, 2000);
         }
@@ -224,7 +236,7 @@ Harvard Medical School
         <div class="container">
             <div class="row">
                 <h1 class="display-2">4CE Data Upload Tool</h1>
-            </div>           
+            </div>
             <div class="row">
                 <div class="col-2">
                     <h5>Your name</h5>
@@ -257,7 +269,7 @@ Harvard Medical School
                     <h5>Comments</h5>
                 </div>
                 <div class="col">
-                    <textarea name="Comments" rows="5" class="form-control" id="Comments">testing that never ends</textarea>
+                    <textarea name="Comments" rows="5" class="form-control" id="Comments"></textarea>
                 </div>
             </div>
             <div class="row">
@@ -283,15 +295,15 @@ Harvard Medical School
                         <input type="file" class="file-upload" id="files" name="files" multiple accept="*.csv">
                     </label>
                     <div id="file-list"></div>
-                </div>                
+                </div>
             </div>
-            <div class="row" id="upload-button">
+            <div class="row" id="upload-button" onmouseover="ValidateBatchHeader();">
                 <div class="col-1">
-                    <input type="button" class="button" onclick="ProcessBatch()" onmouseover="ValidateBatchHeader();" id="cmd-process-batch" value="Upload and Validate" />
+                    <input type="button" class="button" onclick="ProcessBatch()" id="cmd-process-batch" value="Upload and Validate" />
                 </div>
             </div>
             <div class="row">
-                <div class="col messages-label">                    
+                <div class="col messages-label">
                     <span class="messages-label-text"></span>
                     <ol id="div-messages">
                     </ol>

@@ -54,22 +54,22 @@ namespace i2b2_csv_loader.Controllers
 
             //Check that we have at least 1 file and a full batch header of email, siteid, projectid before we validate form.
             rm = PreValidation(rm, files);
-            if (rm.messages.Count() != 0) { return Json(rm); }
+            if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
 
             form = JsonSerializer.Deserialize<BatchHead>(Request.Form["batchHeader"].ToString());
             //Get the Project data based on the ProjectID
             ProjectModel pm = GetProjects().Find(x => x.ProjectID == form.ProjectID);
 
+
             rm = StepOneValidation(rm, files, form);   ///CSV, FileName, DupFileName
             if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
-            
+
             rm = StepTwoValidation(rm, form);   ///Can open file? Column names, Site IDs in First COL
             if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
 
             rm = StepThreeValidation(rm, form);  ///Data types and values
             if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
-            
-            
+
             #region "DROPBOX UPLOAD DB ROW STORAGE"
             System.Guid UploadID = StartUpload(form);
 
@@ -87,6 +87,7 @@ namespace i2b2_csv_loader.Controllers
                 test = await saveToArchiveTask;
                 if (!test)
                 {
+                    rm.valid = false;
                     rm.messages.Add("Failure Saving File to Archive");
                     return Json(rm);
                 }
@@ -94,6 +95,7 @@ namespace i2b2_csv_loader.Controllers
             }
             catch (Exception ex)
             {
+                rm.valid = false;
                 rm.messages.Add(ex.Message);
                 return Json(rm);
             }
@@ -104,6 +106,7 @@ namespace i2b2_csv_loader.Controllers
                 test = await saveToLatestTask;
                 if (!test)
                 {
+                    rm.valid = false;
                     rm.messages.Add("Failure Saving File to Latest");
                     return Json(rm);
                 }
@@ -117,10 +120,9 @@ namespace i2b2_csv_loader.Controllers
 
             #endregion
 
-             rm.valid = true;
+            rm.valid = true;
             rm.messages.Add($"Your files were successfully saved.");
             return Json(rm);
-
 
         }
         [HttpPost]
@@ -164,10 +166,6 @@ namespace i2b2_csv_loader.Controllers
         {
             BatchHead form;
 
-            if (files.Count() == 0)
-            {
-                rm.messages.Add("Upload must include at least one file.");
-            }
 
             //check that the json format is correct
             try
@@ -175,20 +173,24 @@ namespace i2b2_csv_loader.Controllers
                 form = JsonSerializer.Deserialize<BatchHead>(Request.Form["batchHeader"].ToString());
                 rm = ((ResponseModel)((Microsoft.AspNetCore.Mvc.JsonResult)ValidateForm(form)).Value);
 
+
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
+                Console.WriteLine(ex.Message);
                 rm.messages.Add("Form data is not correct. Please check Name, Email, SiteID and Project fields.");
 
 
+            }
+
+            if (files.Count() == 0)
+            {
+                rm.messages.Add("Upload must include at least one file.");
             }
             return rm;
         }
         private ResponseModel StepOneValidation(ResponseModel rm, IFormFileCollection files, BatchHead form)
         {
-
-            //Check for dups of the same file type and that they are all valid csv files
-            int dupcheck = 0;
             List<string> messages = new List<string>();
 
             foreach (ProjectFiles pf in GetProjectFiles(form.ProjectID))
@@ -196,29 +198,30 @@ namespace i2b2_csv_loader.Controllers
 
                 foreach (IFormFile f in files)
                 {
-                    if (f.FileName.ToLower().Contains(pf.FileID.ToLower()))
-                    {
+                    if (f.FileName.Substring(0, pf.FileID.Length).ToLower() == pf.FileID.ToLower())
+                    {//If the file matches to its FileID then its added to _files for upload
                         _files.Add(new Files { FileID = pf.FileID, LatestFileName = f.FileName, File = f, FileProperties = GetFileProperties(form.ProjectID, pf.FileID) });
-                        ++dupcheck;
-                        if (dupcheck > 1)
+                        //if the same file has been added twice then return the error message
+                        if (_files.FindAll(x => x.LatestFileName == f.FileName).Count > 1)
                         {
                             MessageValidationManager.Check(ref messages, $"Upload cannot contain duplicate {pf.FileID} files.");
                         }
                     }
 
                     if (!f.Name.ToLower().Contains(".csv"))
-                        MessageValidationManager.Check(ref messages, $"{f.FileName} is not a valid file format. Must be .csv.");
+                        MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.FileName}</span> is not a valid file format. Must be .csv.");
 
                 }
 
-                dupcheck = 0;
+
             }
 
+            //This checks if any files exist in the uploaded batch but not in _files collection that is valid based on the database FileID values
             foreach (IFormFile f in files)
             {
                 if (!_files.Exists(s => s.LatestFileName == f.FileName))
                 {
-                    MessageValidationManager.Check(ref messages, $"{f.Name} has an incorrect file name. It must contain one of the following words: {ConvertToFileListString(GetProjectFiles(form.ProjectID))}");
+                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.Name}</span> has an incorrect file name. It must contain one of the following words: {ConvertToFileListString(GetProjectFiles(form.ProjectID))}.");
 
                 }
 
@@ -247,7 +250,7 @@ namespace i2b2_csv_loader.Controllers
                 //check the number of cols are a match with what comes back from the DB file properties
                 if (!(colheaders.Count() == f.FileProperties.Count()) && f.FileProperties.Count() != 0)
                 {
-                    MessageValidationManager.Check(ref messages, $"{f.LatestFileName} contains {CSVReader.ParseLine(data[0]).Count()} columns, but {f.FileProperties.Count()} were expected.");
+                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains {CSVReader.ParseLine(data[0]).Count()} columns, but {f.FileProperties.Count()} were expected.");
                     log = true;
                 }
 
@@ -257,7 +260,7 @@ namespace i2b2_csv_loader.Controllers
                     {                //first col of every line should be the siteid
                         if (!(CSVReader.ParseLine(row)[0].ToLower() == form.SiteID.ToLower()))
                         {
-                            MessageValidationManager.Check(ref messages, $"The siteid values in {f.LatestFileName} do not match the Siteid in the form.");
+                            MessageValidationManager.Check(ref messages, $"The siteid values in <span class='file-col'>{f.LatestFileName}</span> do not match the Siteid in the form.");
                             log = false;
                         }
                     }
@@ -270,7 +273,7 @@ namespace i2b2_csv_loader.Controllers
                     foreach (string col in colheaders)
                     {
                         if (!f.FileProperties.Exists(x => x.ColumnName.ToLower() == col.ToLower()))
-                            MessageValidationManager.Check(ref messages, $"{f.LatestFileName} contains incorrect column headers. They must be {GetColumnList(f.FileProperties)}.");
+                            MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column headers. They must be {GetColumnList(f.FileProperties)}.");
                     }
                     log = false;
                 }
@@ -329,7 +332,7 @@ namespace i2b2_csv_loader.Controllers
                                 //validate no nulls
                                 if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
                                 {
-                                    MessageValidationManager.Check(ref messages, $"{f.LatestFileName} contains missing or null values in column {colheaders[colcnt]}. Use -999 to indicate missing data.");
+                                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains missing or null values in column {colheaders[colcnt]}. Use -999 to indicate missing data.");
                                 }
                                 else
                                 {
@@ -342,35 +345,35 @@ namespace i2b2_csv_loader.Controllers
                                             if (fcp.ValueList != null)
                                             {
                                                 if (!fcp.ValueList.Split("|").ToList().Exists(x => x == c))
-                                                    MessageValidationManager.Check(ref messages, $"There are invalid values in column {fcp.ColumnName} in {f.LatestFileName}.");
+                                                    MessageValidationManager.Check(ref messages, $"There are invalid values in column {fcp.ColumnName} in <span class='file-col'>{f.LatestFileName}</span>.");
                                             }
                                             break;
                                         case "date":
                                             if (!Helpers.DateValidation.IsValidDate(c) == true)
                                             {
-                                                MessageValidationManager.Check(ref messages, $"The dates in column {fcp.ColumnName} in {f.LatestFileName } must be in the format YYYY-MM-DD");
+                                                MessageValidationManager.Check(ref messages, $"The dates in column {fcp.ColumnName} in <span class='file-col'>{f.LatestFileName }</span> must be in the format YYYY-MM-DD.");
 
                                             }
                                             else if (!Helpers.DateValidation.DateRange(c, fcp.MaxValue, fcp.MinValue))
                                             {
-                                                MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {f.LatestFileName} that are outside the allowed range.");
+                                                MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in <span class='file-col'>{f.LatestFileName}</span> that are outside the allowed range.");
                                             }
                                             break;
                                         case "int":
                                             int parsedResult;
                                             if (!int.TryParse(c, out parsedResult))
                                             {
-                                                MessageValidationManager.Check(ref messages, $"{f.LatestFileName} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
+                                                MessageValidationManager.Check(ref messages, $"{f.LatestFileName} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}.");
                                             }
                                             else if (!Helpers.RangeValidation.IntRanges(parsedResult, fcp.MaxValue, fcp.MinValue))
-                                            { MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {f.LatestFileName} that are outside the allowed range."); }
+                                            { MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in <span class='file-col'>{f.LatestFileName}</span> that are outside the allowed range."); }
                                             break;
                                         case "real":
                                             float val;
                                             if (!float.TryParse(c, out val))
-                                                MessageValidationManager.Check(ref messages, $"{f.LatestFileName} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}");
+                                                MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}.");
                                             else if (!Helpers.RangeValidation.FloatRanges(val, fcp.MaxValue, fcp.MinValue))
-                                            { MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in {f.LatestFileName} that are outside the allowed range."); }
+                                            { MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in <span class='file-col'>{f.LatestFileName}</span> that are outside the allowed range."); }
                                             break;
                                     }
                                 }
@@ -385,7 +388,7 @@ namespace i2b2_csv_loader.Controllers
                 }
                 catch (Exception e)
                 {
-                    MessageValidationManager.Check(ref messages, $"One of the rows in {f.LatestFileName} contains too many columns.");
+                    MessageValidationManager.Check(ref messages, $"One of the rows in <span class='file-col'>{f.LatestFileName}</span> contains too many columns.");
                     Console.WriteLine(e.Message);
                 }
 
@@ -403,7 +406,7 @@ namespace i2b2_csv_loader.Controllers
 
         }
 
-   
+
         private List<string> ValidateData(System.Guid UploadID)
         {
             List<string> retVal = new List<string>();

@@ -199,3 +199,9 @@ input[type=file] {
     font-weight: bold;   
     color: #990000;
 }
+
+.file-col{
+    font-weight:bold;
+    color:#3170ad;
+
+}
