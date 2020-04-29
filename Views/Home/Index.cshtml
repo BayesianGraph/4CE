@@ -13,7 +13,7 @@ Harvard Medical School
         //header json data (email,comments), to the API all at once.
         var _all_files = {}; //new FormData(); FormData methods dont work in IE, so I changed it to an OBJ
         var _tmp_file;
-        var _status = 25;
+        var _status = 10;
         var _prefix = "4CE\\";
 
 
@@ -47,73 +47,26 @@ Harvard Medical School
 
 
         }
-        function ValidateBatchHeader() {
-
-            if (_all_files["batchHeader"]==undefined) {
-                $(".messages-label").hide();
-                var personsname = $("#PersonsName").val();
-                var email = $("#Email").val();
-                var siteid = $("#SiteID").val();
-                var comments = $("#Comments").val();
-                var projectid = $("#sel-projects").val();
-
-                var data = JSON.stringify({
-                    PersonsName: personsname,
-                    Email: email,
-                    SiteID: siteid,
-                    Comments: comments,
-                    ProjectID: projectid
-                });
-                _tmp_file = data;
-                delete _all_files["batchHeader"];
-                $("#div-messages").html("");
-                $.ajax({
-                    type: "POST",
-                    url: _prefix + "home/ValidateBatchHeader",
-                    processData: false,
-                    contentType: "application/json; charset=utf-8",
-                    dataType: "json",
-                    data: data,
-                    success: function (message) {
-
-                        var rtn = message;
-
-                        if (rtn.valid) {
-                            _all_files["batchHeader"] = _tmp_file;
-                            $("#cmd-process-batch").prop('disabled', false);
-                        } else {
-                            $(".messages-label").show();
-                            $("#cmd-process-batch").prop('disabled', true);
-                            for (var msg of rtn.messages) {
-                                $("#div-messages").append("<li>" + msg + "</li>");
-                            }
-                        }
-
-                    },
-                    error: function (message) {
-                        $(".messages-label").show();
-                        $("#div-messages").html("There was error validating your information!");
-                    },
-                    beforeSend: function () {
-
-                    },
-                    complete: function () {
-
-                    }
-                });
-
-
-                return data;
-            }
-        }
-
+     
         function ProcessBatch() {
             $(".messages-label").hide();
-
-            $(".messages-label-text").html("");
-            
+            $(".messages-label-text").html("");            
             $("#div-messages").html("");
 
+            
+            var personsname = $("#PersonsName").val();
+            var email = $("#Email").val();
+            var siteid = $("#SiteID").val();
+            var comments = $("#Comments").val();
+            var projectid = $("#sel-projects").val();
+
+            var batchHeader = JSON.stringify({
+                PersonsName: personsname,
+                Email: email,
+                SiteID: siteid,
+                Comments: comments,
+                ProjectID: projectid
+            });
 
 
             var formdata = new FormData();
@@ -122,6 +75,7 @@ Harvard Medical School
                 for (var key in _all_files) {
                     formdata.append(key, _all_files[key]);
                 }
+                formdata.append("batchHeader", batchHeader);
             }
             $.ajax({
                 type: "POST",
@@ -131,7 +85,6 @@ Harvard Medical School
                 data: formdata,
                 success: function (message) {
                     $("#div-messages").html("");
-
                     var rtn = message;
                     if (rtn.valid) {
                         $(".messages-label").show();
@@ -140,9 +93,7 @@ Harvard Medical School
 
                         for (var msg of rtn.messages) {
                             $(".messages-label-text").append(msg);
-                        }
-
-                        _all_files = null;
+                        }                    
 
 
                     } else {
@@ -173,20 +124,12 @@ Harvard Medical School
 
         $(document).ready(function () {
             $(".messages-label").hide();
-
-
             $("#sel-projects").on("change", function () {
                 getprojects()
             });
-
-            $(".form-control").focusin(function () {
-                $("#cmd-process-batch").prop('disabled', false);
-            });
-
             $(".file-upload").on('change', function () {
                 addFile(this);
             });
-
             getprojects();
         });
 
@@ -216,7 +159,7 @@ Harvard Medical School
         }
         function getstatusbar() {
             var bar = "<div class=\"w3-border\">" +
-                "<div class=\"w3-green\" style=\"height:24px;width:20%\"></div>" +
+                "<div class=\"w3-green\" style=\"height:24px;width:10%\"></div>" +
                 "</div>";
 
             return bar;
@@ -224,8 +167,8 @@ Harvard Medical School
 
         function updatestatusbar() {
             var bar = setInterval(function () {
-                _status = _status + 10;
-                if (_status > 100) { _status = 10; }
+                _status = _status + Math.floor((100 - _status) * 0.1);
+                if (_status > 99) { _status = 99; }
                 $(".w3-green").css("width", _status + "%")
             }, 2000);
         }
@@ -297,7 +240,7 @@ Harvard Medical School
                     <div id="file-list"></div>
                 </div>
             </div>
-            <div class="row" id="upload-button" onmouseover="ValidateBatchHeader();">
+            <div class="row" id="upload-button">
                 <div class="col-1">
                     <input type="button" class="button" onclick="ProcessBatch()" id="cmd-process-batch" value="Upload and Validate" />
                 </div>

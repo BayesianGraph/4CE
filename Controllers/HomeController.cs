@@ -60,7 +60,6 @@ namespace i2b2_csv_loader.Controllers
             //Get the Project data based on the ProjectID
             ProjectModel pm = GetProjects().Find(x => x.ProjectID == form.ProjectID);
 
-
             rm = StepOneValidation(rm, files, form);   ///CSV, FileName, DupFileName
             if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
 
@@ -202,7 +201,7 @@ namespace i2b2_csv_loader.Controllers
                     {//If the file matches to its FileID then its added to _files for upload
                         _files.Add(new Files { FileID = pf.FileID, LatestFileName = f.FileName, File = f, FileProperties = GetFileProperties(form.ProjectID, pf.FileID) });
                         //if the same file has been added twice then return the error message
-                        if (_files.FindAll(x => x.LatestFileName == f.FileName).Count > 1)
+                        if (_files.FindAll(x => x.LatestFileName.ToLower().Contains(pf.FileID.ToLower())).Count>1)
                         {
                             MessageValidationManager.Check(ref messages, $"Upload cannot contain duplicate {pf.FileID} files.");
                         }
