@@ -12,21 +12,24 @@ namespace i2b2_csv_loader.Helpers
 
         public static bool IntRanges(int value, string max, string min)
         {
-            int parsedmax;
-            int parsedmin;
+
+            int parsedmax = 0;
+            int parsedmin = 0;
             bool maxtest = false;
             bool mintest = false;
             bool rtn = false;
-
-            if (int.TryParse(max, out parsedmax))
-            { maxtest = true; }
-            if (int.TryParse(min, out parsedmin))
-            { mintest = true; }
-            
+            try
+            {
+                if (int.TryParse(max, out parsedmax))
+                { maxtest = true; }
+                if (int.TryParse(min, out parsedmin))
+                { mintest = true; }
+            }
+            catch { }
             if (maxtest && mintest)
                 if (value >= parsedmin && value <= parsedmax) { rtn = true; }
 
-            if(maxtest && !mintest)
+            if (maxtest && !mintest)
                 if (value <= parsedmax) { rtn = true; }
 
             if (!maxtest && mintest)
@@ -40,16 +43,19 @@ namespace i2b2_csv_loader.Helpers
         }
         public static bool FloatRanges(float value, string max, string min)
         {
-            float parsedmax;
-            float parsedmin;
+            float parsedmax = 0;
+            float parsedmin = 0;
             bool maxtest = false;
             bool mintest = false;
             bool rtn = false;
-
-            if (float.TryParse(max, out parsedmax))
-            { maxtest = true; }
-            if (float.TryParse(min, out parsedmin))
-            { mintest = true; }
+            try
+            {
+                if (float.TryParse(max, out parsedmax))
+                { maxtest = true; }
+                if (float.TryParse(min, out parsedmin))
+                { mintest = true; }
+            }
+            catch { }
 
             if (maxtest && mintest)
                 if (value >= parsedmin && value <= parsedmax) { rtn = true; }

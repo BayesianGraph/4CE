@@ -25,7 +25,6 @@ namespace i2b2_csv_loader.Controllers
     public class HomeController : Controller
     {
         private List<Models.Files> _files = new List<Models.Files>();
-        private List<Models.ProjectFiles> _projectfiles = new List<ProjectFiles>();
         private readonly IConfiguration _configuration;
 
         public HomeController(IConfiguration configuration)
@@ -191,28 +190,34 @@ namespace i2b2_csv_loader.Controllers
         private ResponseModel StepOneValidation(ResponseModel rm, IFormFileCollection files, BatchHead form)
         {
             List<string> messages = new List<string>();
-
-            foreach (ProjectFiles pf in GetProjectFiles(form.ProjectID))
+            List<ProjectFiles> pfs = GetProjectFiles(form.ProjectID);
+            try
             {
 
-                foreach (IFormFile f in files)
+                foreach (ProjectFiles pf in pfs)
                 {
-                    if (f.FileName.Substring(0, pf.FileID.Length).ToLower() == pf.FileID.ToLower())
-                    {//If the file matches to its FileID then its added to _files for upload
-                        _files.Add(new Files { FileID = pf.FileID, LatestFileName = f.FileName, File = f, FileProperties = GetFileProperties(form.ProjectID, pf.FileID) });
-                        //if the same file has been added twice then return the error message
-                        if (_files.FindAll(x => x.LatestFileName.ToLower().Contains(pf.FileID.ToLower())).Count>1)
-                        {
-                            MessageValidationManager.Check(ref messages, $"Upload cannot contain duplicate {pf.FileID} files.");
-                        }
+
+                    foreach (IFormFile f in files)
+                    {
+                        if (f.FileName.Length >= pf.FileID.Length)  //cant slip in a file name with 3 char and substring 10 char from it.
+                            if (f.FileName.Substring(0, pf.FileID.Length).ToLower() == pf.FileID.ToLower())
+                            {//If the file matches to its FileID then its added to _files for upload
+                                _files.Add(new Files { FileID = pf.FileID, LatestFileName = f.FileName, File = f, FileProperties = GetFileProperties(form.ProjectID, pf.FileID) });
+                                //if the same file has been added twice then return the error message
+                                if (_files.FindAll(x => x.LatestFileName.ToLower().Contains(pf.FileID.ToLower())).Count > 1)
+                                {
+                                    MessageValidationManager.Check(ref messages, $"Upload cannot contain duplicate {pf.FileID} files.");
+                                }
+                            }
+
                     }
 
-                    if (!f.Name.ToLower().Contains(".csv"))
-                        MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.FileName}</span> is not a valid file format. Must be .csv.");
 
                 }
-
-
+            }
+            catch (Exception ex)
+            {
+                Console.Write(ex.Message);
             }
 
             //This checks if any files exist in the uploaded batch but not in _files collection that is valid based on the database FileID values
@@ -220,9 +225,12 @@ namespace i2b2_csv_loader.Controllers
             {
                 if (!_files.Exists(s => s.LatestFileName == f.FileName))
                 {
-                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.Name}</span> has an incorrect file name. It must contain one of the following words: {ConvertToFileListString(GetProjectFiles(form.ProjectID))}.");
+                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.Name}</span> has an incorrect file name. It must contain one of the following words: {ConvertToFileListString(pfs)}.");
 
                 }
+
+                if (!f.Name.ToLower().Contains(".csv"))
+                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.FileName}</span> is not a valid file format. Must be .csv.");
 
             }
 
@@ -241,7 +249,6 @@ namespace i2b2_csv_loader.Controllers
                 List<string> data = CSVReader.ReadFormFile(f.File);
                 List<string> colheaders = CSVReader.ParseLine(data[0]);
 
-                _projectfiles = GetProjectFiles(form.ProjectID);
 
                 //remove the col headers from the data;
                 data.Remove(data[0]);
@@ -387,7 +394,7 @@ namespace i2b2_csv_loader.Controllers
                 }
                 catch (Exception e)
                 {
-                    MessageValidationManager.Check(ref messages, $"One of the rows in <span class='file-col'>{f.LatestFileName}</span> contains too many columns.");
+                    MessageValidationManager.Check(ref messages, $"An unexpected error occured in <span class='file-col'>{f.LatestFileName}</span>.");
                     Console.WriteLine(e.Message);
                 }
 
