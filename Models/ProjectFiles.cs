@@ -11,6 +11,8 @@ namespace i2b2_csv_loader.Models
         public string FileID { get; set; }
         public int NumColumns { get; set; }
         public int SortOrder { get; set; }
+        public string NullCode { get; set; }
+        public string MaskCode { get; set; }
 
     }
 }

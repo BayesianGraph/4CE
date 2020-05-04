@@ -13,6 +13,6 @@ namespace i2b2_csv_loader.Models
         public byte IsActive { get; set; }
         public string SchemaName { get; set; }
         public string FilePath { get; set; }
-
+        public string NullCode { get; set; }
     }
 }

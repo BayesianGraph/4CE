@@ -65,7 +65,7 @@ namespace i2b2_csv_loader.Controllers
             rm = StepTwoValidation(rm, form);   ///Can open file? Column names, Site IDs in First COL
             if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
 
-            rm = StepThreeValidation(rm, form);  ///Data types and values
+            rm = StepThreeValidation(rm, form,pm);  ///Data types and values
             if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
 
             #region "DROPBOX UPLOAD DB ROW STORAGE"
@@ -225,7 +225,7 @@ namespace i2b2_csv_loader.Controllers
             {
                 if (!_files.Exists(s => s.LatestFileName == f.FileName))
                 {
-                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.Name}</span> has an incorrect file name. It must contain one of the following words: {ConvertToFileListString(pfs)}.");
+                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.Name}</span> has an incorrect file name. It must begin one of the following words: {ConvertToFileListString(pfs)}.");
 
                 }
 
@@ -310,7 +310,7 @@ namespace i2b2_csv_loader.Controllers
             return rm;
 
         }
-        private ResponseModel StepThreeValidation(ResponseModel rm, BatchHead form)
+        private ResponseModel StepThreeValidation(ResponseModel rm, BatchHead form,ProjectModel pm)
         {
             List<string> messages = new List<string>();
 
@@ -338,7 +338,7 @@ namespace i2b2_csv_loader.Controllers
                                 //validate no nulls
                                 if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
                                 {
-                                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains missing or null values in column {colheaders[colcnt]}. Use -999 to indicate missing data.");
+                                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains missing or null values in column {colheaders[colcnt]}. Use {pm.NullCode} to indicate missing data.");
                                 }
                                 else
                                 {
