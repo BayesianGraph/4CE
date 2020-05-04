@@ -257,7 +257,7 @@ namespace i2b2_csv_loader.Controllers
                 if (!(colheaders.Count() == f.FileProperties.Count()) && f.FileProperties.Count() != 0)
                 {
                     MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains {CSVReader.ParseLine(data[0]).Count()} columns, but {f.FileProperties.Count()} were expected.");
-                    log = true;
+                    log = false;
                 }
 
                 if (log)
@@ -276,13 +276,20 @@ namespace i2b2_csv_loader.Controllers
 
                 if (log)
                 {
+                    int cnt = 1;
                     foreach (string col in colheaders)
                     {
-                        if (!f.FileProperties.Exists(x => x.ColumnName.ToLower() == col.ToLower()))
+                        if (f.FileProperties[cnt-1].ColumnName.ToLower() != col.ToLower() || f.FileProperties[cnt-1].SortOrder != cnt.ToString())
                             MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column headers. They must be {GetColumnList(f.FileProperties)}.");
+
+                        ++cnt;
                     }
                     log = false;
                 }
+
+
+                //f.FileProperties[cnt].SortOrder!=cnt.ToString()
+
 
                 //foreach (string c in colheaders)
                 //{

@@ -14,23 +14,18 @@ Harvard Medical School
         var _all_files = {}; //new FormData(); FormData methods dont work in IE, so I changed it to an OBJ
         var _tmp_file;
         var _status = 10;
-        var _prefix = "4CE\\";
+        var _prefix = "";// "4CE\\";
 
 
         function addFile(files) {
             //add only one file to the basket at a time.
-            var name = [];
+            var name = "";
             for (var i = 0; i < files.files.length; i++) {
-                //name = files.files[i].name.split(" ").join("");//no spaces in file names
-                name = files.files[i].name.split(" ");//we dont want spaces in file names
-                if (files.files[i].name.split(" ").length === 1 && name[0].toLowerCase().includes(".csv")) {  //must be a csv file only.
-                    delete _all_files[name[0].toLowerCase()];
-                    _all_files[name[0].toLowerCase()] = files.files[i];
-                    AddFileRow(name[0]);
-                } else {
-                    $(".messages-label").show();
-                    $(".messages-label-text").html("Your file could not be added");
-                    $("#div-messages").append("<li>" + files.files[i].name + " is not a valid file name format for our UI.  Please remove the spaces and try again.</li>");
+                name = files.files[i].name.split(" ").join("");//no spaces in file names
+                if (name.includes(".csv")) {  //must be a csv file only.
+                    delete _all_files[name.toLowerCase()];
+                    _all_files[name.toLowerCase()] = files.files[i];
+                    AddFileRow(name);
                 }
             }
         }
@@ -52,13 +47,13 @@ Harvard Medical School
 
 
         }
-
+     
         function ProcessBatch() {
             $(".messages-label").hide();
-            $(".messages-label-text").html("");
+            $(".messages-label-text").html("");            
             $("#div-messages").html("");
 
-
+            
             var personsname = $("#PersonsName").val();
             var email = $("#Email").val();
             var siteid = $("#SiteID").val();
@@ -98,7 +93,7 @@ Harvard Medical School
 
                         for (var msg of rtn.messages) {
                             $(".messages-label-text").append(msg);
-                        }
+                        }                    
 
 
                     } else {
