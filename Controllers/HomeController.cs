@@ -225,11 +225,11 @@ namespace i2b2_csv_loader.Controllers
             {
                 if (!_files.Exists(s => s.LatestFileName == f.FileName))
                 {
-                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.Name}</span> has an incorrect file name. It must begin one of the following words: {ConvertToFileListString(pfs)}.");
+                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.FileName}</span> has an incorrect file name. It must begin one of the following words: {ConvertToFileListString(pfs)}.");
 
                 }
 
-                if (!f.Name.ToLower().Contains(".csv"))
+                if (!f.FileName.ToLower().Contains(".csv"))
                     MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.FileName}</span> is not a valid file format. Must be .csv.");
 
             }
@@ -643,7 +643,7 @@ namespace i2b2_csv_loader.Controllers
                     int i = 1;
                     foreach (Models.Files file in _files)
                     {
-                        p.Add("@OriginalFileName" + i, file.File.Name, dbType: DbType.String);
+                        p.Add("@OriginalFileName" + i, file.File.FileName, dbType: DbType.String);
                         p.Add("@FileID" + i, file.FileID, dbType: DbType.String);
                         i++;
                         if (i >= 9) break;

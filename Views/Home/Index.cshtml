@@ -16,22 +16,22 @@ Harvard Medical School
         var _status = 10;
         var _prefix = "";// "4CE\\";
 
-
         function addFile(files) {
             //add only one file to the basket at a time.
             var name = "";
             for (var i = 0; i < files.files.length; i++) {
-                name = files.files[i].name.split(" ").join("");//no spaces in file names
-                if (name.includes(".csv")) {  //must be a csv file only.
-                    delete _all_files[name.toLowerCase()];
-                    _all_files[name.toLowerCase()] = files.files[i];
-                    AddFileRow(name);
-                }
+                name = files.files[i].name.split(" ").join("");//no spaces in file names or IDs for the UI.
+                name = name.replace(".","");
+                delete _all_files[name.toLowerCase()];
+                _all_files[name.toLowerCase()] = files.files[i];
+                AddFileRow(files.files[i].name);
+
             }
         }
 
         function AddFileRow(id) {
             var rowid = id.replace(".", "").toLowerCase();
+            rowid = rowid.split(" ").join("");            
             var button = "<button onclick=\"removerow('" + rowid + "');\" type=\"button\" class=\"close\" aria-label=\"Close\">" +
                 "<span aria-hidden=\"true\">&times;</span>" +
                 "</button>";
@@ -40,20 +40,18 @@ Harvard Medical School
             }
         }
         function removerow(id) {
-            $("#" + id).remove();
-            //add the period back to remove it from the collection
-            id = id.toLowerCase().replace("csv", ".csv");
+            $("#" + id).remove();      
+            files
             delete _all_files[id];
 
-
         }
-     
+
         function ProcessBatch() {
             $(".messages-label").hide();
-            $(".messages-label-text").html("");            
+            $(".messages-label-text").html("");
             $("#div-messages").html("");
 
-            
+
             var personsname = $("#PersonsName").val();
             var email = $("#Email").val();
             var siteid = $("#SiteID").val();
@@ -93,7 +91,7 @@ Harvard Medical School
 
                         for (var msg of rtn.messages) {
                             $(".messages-label-text").append(msg);
-                        }                    
+                        }
 
 
                     } else {
