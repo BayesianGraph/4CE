@@ -144,7 +144,7 @@ form {
 }
 
 .close {
-    float: left !important;
+    float: none !important;
     margin-right: 5px;
 }
 

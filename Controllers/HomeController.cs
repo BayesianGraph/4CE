@@ -14,10 +14,7 @@ using System;
 using Dropbox.Api.Files;
 using System.Threading.Tasks;
 using Dropbox.Api;
-using System.Text;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using System.Globalization;
-using Dropbox.Api.Sharing;
 
 namespace i2b2_csv_loader.Controllers
 {
@@ -280,36 +277,14 @@ namespace i2b2_csv_loader.Controllers
                     foreach (string col in colheaders)
                     {
                         if (f.FileProperties[cnt-1].ColumnName.ToLower() != col.ToLower() || f.FileProperties[cnt-1].SortOrder != cnt.ToString())
-                            MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column headers. They must be {GetColumnList(f.FileProperties)}.");
+                            MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column headers or order of columns are incorrect. They must be {GetColumnList(f.FileProperties)}.");
 
                         ++cnt;
                     }
                     log = false;
                 }
 
-
-                //f.FileProperties[cnt].SortOrder!=cnt.ToString()
-
-
-                //foreach (string c in colheaders)
-                //{
-                //    try
-                //    {                        //every property of a column from the database
-                //        f.FileProperties.Find(x => x.ColumnName == c);
-                //    }
-                //    catch
-                //    {
-                //        try
-                //        {
-                //            MessageValidationManager.Check(ref messages, $"{f.LatestFileName} contains missing column {c}.");
-                //        }
-                //        catch
-                //        {
-                //            MessageValidationManager.Check(ref messages, $"{f.LatestFileName} contains too many columns. Expects {f.FileProperties.Count()}");
-                //        }
-                //    }
-
-                //}
+            
                 log = true;
 
             }
