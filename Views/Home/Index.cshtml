@@ -19,25 +19,23 @@ Harvard Medical School
         function addFile(files) {
             //add only one file to the basket at a time.
             var name = "";
-            for (var i = 0; i < files.files.length; i++) {
-                name = files.files[i].name.split(" ").join("");//no spaces in file names or IDs for the UI.
-                name = name.replace(".","");
-                delete _all_files[name.toLowerCase()];
-               
+            for (var i = 0; i < files.files.length; i++) {   
+                
+                name = files.files[i].name.replace(/[^a-zA-Z0-9]/g, "");                
+                delete _all_files[name.toLowerCase()];               
                 _all_files[name.toLowerCase()] = files.files[i];
                 AddFileRow(files.files[i].name);            
             }//After you read it, you empty it. its just a buffer control for the UI, the bytes are stored in _all_files.
             $("#files").val('');
         }
 
-        function AddFileRow(id) {
-            var rowid = id.replace(".", "").toLowerCase();
-            rowid = rowid.split(" ").join("");            
+        function AddFileRow(name) {
+            var rowid = name.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
             var button = "<button onclick=\"removerow('" + rowid + "');\" type=\"button\" class=\"close\" aria-label=\"Close\">" +
                 "<span aria-hidden=\"true\">&times;</span>" +
                 "</button>";
             if (!$("#file-list").find("#" + rowid).length) {
-                $("#file-list").append("<div id=\"" + rowid + "\">" + button + " " + id + "</div>");
+                $("#file-list").append("<div id=\"" + rowid + "\">" + button + " " + name + "</div>");
             }
         }
         function removerow(id) {
@@ -89,15 +87,16 @@ Harvard Medical School
                         $(".messages-label-text").html("");
                         $(".messages-label-text").attr("style", "color:#009900");
 
-                        for (var msg of rtn.messages) {
-                            $(".messages-label-text").append(msg);
+                        for (var msg in rtn.messages) {
+
+                            $(".messages-label-text").append(rtn.messages[msg]);
                         }
 
                     } else {
                         $(".messages-label").show();
                         $(".messages-label-text").html("Your files could not be processed…");
-                        for (var msg of rtn.messages) {
-                            $("#div-messages").append("<li>" + msg + "</li>");
+                        for (var msg in rtn.messages) {
+                            $("#div-messages").append("<li>" + rtn.messages[msg] + "</li>");
                         }
                     }
                 },
