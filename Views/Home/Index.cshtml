@@ -89,14 +89,14 @@ Harvard Medical School
                         $(".messages-label-text").html("");
                         $(".messages-label-text").attr("style", "color:#009900");
 
-                        for (var msg in rtn.messages) {
+                        for (var msg of rtn.messages) {
                             $(".messages-label-text").append(msg);
                         }
 
                     } else {
                         $(".messages-label").show();
                         $(".messages-label-text").html("Your files could not be processed…");
-                        for (var msg in rtn.messages) {
+                        for (var msg of rtn.messages) {
                             $("#div-messages").append("<li>" + msg + "</li>");
                         }
                     }
@@ -139,7 +139,7 @@ Harvard Medical School
                 processData: false,
                 success: function (message) {
                     $("#div-files").append("<b>Expected files</b>: ");
-                    for (var msg in message) {
+                    for (var msg of message) {
                         $("#div-files").append(msg.fileID + ".csv");
                         $("#div-files").append(", ");
                     }

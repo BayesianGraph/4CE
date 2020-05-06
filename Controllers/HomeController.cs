@@ -62,7 +62,7 @@ namespace i2b2_csv_loader.Controllers
             rm = StepTwoValidation(rm, form);   ///Can open file? Column names, Site IDs in First COL
             if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
 
-            rm = StepThreeValidation(rm, form,pm);  ///Data types and values
+            rm = StepThreeValidation(rm, form, pm);  ///Data types and values
             if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
 
             #region "DROPBOX UPLOAD DB ROW STORAGE"
@@ -257,34 +257,33 @@ namespace i2b2_csv_loader.Controllers
                     log = false;
                 }
 
-                if (log)
-                {
-                    foreach (var row in data)
-                    {                //first col of every line should be the siteid
-                        if (!(CSVReader.ParseLine(row)[0].ToLower() == form.SiteID.ToLower()))
-                        {
-                            MessageValidationManager.Check(ref messages, $"The siteid values in <span class='file-col'>{f.LatestFileName}</span> do not match the Siteid in the form.");
-                            log = false;
-                        }
-                    }
-
-                }
-                //check the col names match with what comes back from teh DB file properties
-
+                //check the col names match with what comes back from the DB file properties
                 if (log)
                 {
                     int cnt = 1;
                     foreach (string col in colheaders)
                     {
-                        if (f.FileProperties[cnt-1].ColumnName.ToLower() != col.ToLower() || f.FileProperties[cnt-1].SortOrder != cnt.ToString())
-                            MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column headers or order of columns are incorrect. They must be {GetColumnList(f.FileProperties)}.");
-
+                        if (log)
+                        {
+                            if (f.FileProperties[cnt - 1].ColumnName.ToLower() != col.ToLower())
+                            {
+                                MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column headers. They must be {GetColumnList(f.FileProperties)}.");
+                                log = false;
+                            }
+                        }
+                        if (log)
+                        {
+                            if (f.FileProperties[cnt - 1].SortOrder != cnt.ToString())
+                            {
+                                MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect order of columns. They must be {GetColumnList(f.FileProperties)}.");
+                                log = false;
+                            }
+                        }                        
                         ++cnt;
                     }
-                    log = false;
+                    log = true;
                 }
 
-            
                 log = true;
 
             }
@@ -292,9 +291,30 @@ namespace i2b2_csv_loader.Controllers
             return rm;
 
         }
-        private ResponseModel StepThreeValidation(ResponseModel rm, BatchHead form,ProjectModel pm)
+        private ResponseModel StepThreeValidation(ResponseModel rm, BatchHead form, ProjectModel pm)
         {
             List<string> messages = new List<string>();
+
+
+
+
+
+            //if (log)
+            //{
+            //    foreach (var row in data)
+            //    {                //first col of every line should be the siteid
+            //        if (!(CSVReader.ParseLine(row)[0].ToLower() == form.SiteID.ToLower()))
+            //        {
+            //            MessageValidationManager.Check(ref messages, $"The siteid values in <span class='file-col'>{f.LatestFileName}</span> do not match the Siteid in the form.");
+            //            log = false;
+            //        }
+            //    }
+
+            //}
+
+
+
+
 
             foreach (Models.Files f in _files)
             {
@@ -310,6 +330,7 @@ namespace i2b2_csv_loader.Controllers
                     {
                         colcnt = 0;
                         var row = CSVReader.ParseLine(s);
+
                         foreach (string c in row)
                         {
                             //every property of a column from the database
@@ -317,6 +338,14 @@ namespace i2b2_csv_loader.Controllers
 
                             if (fcp != null)
                             {
+                                if (fcp.SortOrder != (colcnt + 1).ToString()) { MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column header order.They must be {GetColumnList(f.FileProperties)}."); }
+
+                                if (fcp.ColumnName.ToLower() == "siteid")                                
+                                    if (c.ToLower() != form.SiteID.ToLower())
+                                    {
+                                        MessageValidationManager.Check(ref messages, $"The siteid values in <span class='file-col'>{f.LatestFileName}</span> do not match the Siteid in the form.");
+                                    }
+                                
                                 //validate no nulls
                                 if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
                                 {
