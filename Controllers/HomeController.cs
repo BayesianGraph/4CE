@@ -268,7 +268,7 @@ namespace i2b2_csv_loader.Controllers
                         {
                             if (f.FileProperties[cnt - 1].ColumnName.ToLower() != col.ToLower())
                             {
-                                MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column headers. They must be {GetColumnList(f.FileProperties)}.");
+                                 MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column headers. They must be {GetColumnList(f.FileProperties)}, and <u>in that order</u>.");
                                 log = false;
                             }
                         }
@@ -276,7 +276,7 @@ namespace i2b2_csv_loader.Controllers
                         {
                             if (f.FileProperties[cnt - 1].SortOrder != cnt.ToString())
                             {
-                                MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect order of columns. They must be {GetColumnList(f.FileProperties)}.");
+                                MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect order of columns. They must be {GetColumnList(f.FileProperties)}, and <u>in that order</u>.");
                                 log = false;
                             }
                         }                        
@@ -625,7 +625,7 @@ namespace i2b2_csv_loader.Controllers
             string s = "";
             foreach (FileProperties f in fp)
             {
-                s += $"{f.ColumnName} ,";
+                s += $"{f.ColumnName}, ";
             }
             s = s.Substring(0, s.Length - 2);
 
