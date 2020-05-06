@@ -50,7 +50,8 @@ namespace i2b2_csv_loader.Controllers
 
             //Check that we have at least 1 file and a full batch header of email, siteid, projectid before we validate form.
             rm = PreValidation(rm, files);
-            if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
+            if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }          
+
 
             form = JsonSerializer.Deserialize<BatchHead>(Request.Form["batchHeader"].ToString());
             //Get the Project data based on the ProjectID

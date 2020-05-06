@@ -14,7 +14,7 @@ Harvard Medical School
         var _all_files = {}; //new FormData(); FormData methods dont work in IE, so I changed it to an OBJ
         var _tmp_file;
         var _status = 10;
-        var _prefix = "";//"4CE\\";
+        var _prefix = "4CE\\";
 
         function addFile(files) {
             //add only one file to the basket at a time.
@@ -138,8 +138,8 @@ Harvard Medical School
                 processData: false,
                 success: function (message) {
                     $("#div-files").append("<b>Expected files</b>: ");
-                    for (var msg of message) {
-                        $("#div-files").append(msg.fileID + ".csv");
+                    for (var msg in message) {
+                        $("#div-files").append(message[msg].fileID + ".csv");
                         $("#div-files").append(", ");
                     }
                     $("#div-files").html($("#div-files").html().substring(0, $("#div-files").html().length - 2));
