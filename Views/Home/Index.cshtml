@@ -8,23 +8,29 @@ Weberlab
 DBMI
 Harvard Medical School
 
+
+
+<!-- Version 1 -->
+
+
+
 */
         //Basket is _all_files.  I upload it all with the
         //header json data (email,comments), to the API all at once.
         var _all_files = {}; //new FormData(); FormData methods dont work in IE, so I changed it to an OBJ
         var _tmp_file;
         var _status = 10;
-        var _prefix = "4CE\\";
+        var _prefix = "";//"4CE\\";
 
         function addFile(files) {
             //add only one file to the basket at a time.
             var name = "";
-            for (var i = 0; i < files.files.length; i++) {   
-                
-                name = files.files[i].name.replace(/[^a-zA-Z0-9]/g, "");                
-                delete _all_files[name.toLowerCase()];               
+            for (var i = 0; i < files.files.length; i++) {
+
+                name = files.files[i].name.replace(/[^a-zA-Z0-9]/g, "");
+                delete _all_files[name.toLowerCase()];
                 _all_files[name.toLowerCase()] = files.files[i];
-                AddFileRow(files.files[i].name);            
+                AddFileRow(files.files[i].name);
             }//After you read it, you empty it. its just a buffer control for the UI, the bytes are stored in _all_files.
             $("#files").val('');
         }
@@ -39,7 +45,7 @@ Harvard Medical School
             }
         }
         function removerow(id) {
-            $("#" + id).remove();                  
+            $("#" + id).remove();
             delete _all_files[id];
 
         }
@@ -126,7 +132,10 @@ Harvard Medical School
             $(".file-upload").on('change', function () {
                 addFile(this);
             });
-            getprojects();
+
+            $("#sel-projects").ready(function () {
+                getprojects();
+            });
         });
 
         function getprojects() {

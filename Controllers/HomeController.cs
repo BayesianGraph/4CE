@@ -50,7 +50,7 @@ namespace i2b2_csv_loader.Controllers
 
             //Check that we have at least 1 file and a full batch header of email, siteid, projectid before we validate form.
             rm = PreValidation(rm, files);
-            if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }          
+            if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
 
 
             form = JsonSerializer.Deserialize<BatchHead>(Request.Form["batchHeader"].ToString());
@@ -197,10 +197,10 @@ namespace i2b2_csv_loader.Controllers
 
                     foreach (IFormFile f in files)
                     {
-                        if (f.FileName.Length >= pf.FileID.Length)  //cant slip in a file name with 3 char and substring 10 char from it.
-                            if (f.FileName.Substring(0, pf.FileID.Length).ToLower() == pf.FileID.ToLower())
+                        if (FileNameManager.FileName(f.FileName).Length >= pf.FileID.Length)  //cant slip in a file name with 3 char and substring 10 char from it.
+                            if (FileNameManager.FileName(f.FileName).Substring(0, pf.FileID.Length).ToLower() == pf.FileID.ToLower())
                             {//If the file matches to its FileID then its added to _files for upload
-                                _files.Add(new Files { FileID = pf.FileID, LatestFileName = f.FileName, File = f, FileProperties = GetFileProperties(form.ProjectID, pf.FileID) });
+                                _files.Add(new Files { FileID = pf.FileID, LatestFileName = FileNameManager.FileName(f.FileName), File = f, FileProperties = GetFileProperties(form.ProjectID, pf.FileID) });
                                 //if the same file has been added twice then return the error message
                                 if (_files.FindAll(x => x.LatestFileName.ToLower().Contains(pf.FileID.ToLower())).Count > 1)
                                 {
@@ -221,15 +221,15 @@ namespace i2b2_csv_loader.Controllers
             //This checks if any files exist in the uploaded batch but not in _files collection that is valid based on the database FileID values
             foreach (IFormFile f in files)
             {
-                if (!_files.Exists(s => s.LatestFileName == f.FileName))
+                if (!FileNameManager.FileName(f.FileName).ToLower().Contains(".csv"))
                 {
-                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.FileName}</span> has an incorrect file name. It must begin one of the following words: {ConvertToFileListString(pfs)}.");
+                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{FileNameManager.FileName(f.FileName)}</span> is not a valid file format. Must be .csv.");
+                }
+                else if (!_files.Exists(s => s.LatestFileName == FileNameManager.FileName(f.FileName)))
+                {
+                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{FileNameManager.FileName(f.FileName)}</span> has an incorrect file name. It must begin one of the following words: {ConvertToFileListString(pfs)}.");
 
                 }
-
-                if (!f.FileName.ToLower().Contains(".csv"))
-                    MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.FileName}</span> is not a valid file format. Must be .csv.");
-
             }
 
             rm.messages = messages;
@@ -268,7 +268,7 @@ namespace i2b2_csv_loader.Controllers
                         {
                             if (f.FileProperties[cnt - 1].ColumnName.ToLower() != col.ToLower())
                             {
-                                 MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column headers. They must be {GetColumnList(f.FileProperties)}, and <u>in that order</u>.");
+                                MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column headers. They must be {GetColumnList(f.FileProperties)}, and <u>in that order</u>.");
                                 log = false;
                             }
                         }
@@ -279,7 +279,7 @@ namespace i2b2_csv_loader.Controllers
                                 MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect order of columns. They must be {GetColumnList(f.FileProperties)}, and <u>in that order</u>.");
                                 log = false;
                             }
-                        }                        
+                        }
                         ++cnt;
                     }
                     log = true;
@@ -341,12 +341,12 @@ namespace i2b2_csv_loader.Controllers
                             {
                                 if (fcp.SortOrder != (colcnt + 1).ToString()) { MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column header order.They must be {GetColumnList(f.FileProperties)}."); }
 
-                                if (fcp.ColumnName.ToLower() == "siteid")                                
+                                if (fcp.ColumnName.ToLower() == "siteid")
                                     if (c.ToLower() != form.SiteID.ToLower())
                                     {
                                         MessageValidationManager.Check(ref messages, $"The siteid values in <span class='file-col'>{f.LatestFileName}</span> do not match the Siteid in the form.");
                                     }
-                                
+
                                 //validate no nulls
                                 if (c.Trim() == "" || c.Trim().ToLower() == "(null)" || c.Trim().ToLower() == "null" || c.Trim().ToLower() == "na" || c.Trim().ToLower() == "n/a" || c.Trim().ToLower() == "n.a.")
                                 {
@@ -648,7 +648,7 @@ namespace i2b2_csv_loader.Controllers
                     int i = 1;
                     foreach (Models.Files file in _files)
                     {
-                        p.Add("@OriginalFileName" + i, file.File.FileName, dbType: DbType.String);
+                        p.Add("@OriginalFileName" + i, FileNameManager.FileName(file.File.FileName), dbType: DbType.String);
                         p.Add("@FileID" + i, file.FileID, dbType: DbType.String);
                         i++;
                         if (i >= 9) break;
@@ -703,6 +703,7 @@ namespace i2b2_csv_loader.Controllers
                         _files[8].LatestFileName = r.LatestFileName9;
                     }
                     uploadID = r.UploadID;
+                    db.Close();
                 }
             }
             catch (Exception e)
@@ -746,6 +747,7 @@ namespace i2b2_csv_loader.Controllers
                     p.Add("Status", "", dbType: DbType.String, ParameterDirection.Output);
                     List<StartUploadResults> l = new List<StartUploadResults>();
                     db.Execute("[dbo].[uspLoadData]", p, commandType: CommandType.StoredProcedure);
+                    db.Close();
                 }
             }
             catch (Exception e)
@@ -763,9 +765,8 @@ namespace i2b2_csv_loader.Controllers
                 using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
                 {
                     db.Open();
-
                     pm = db.Query<ProjectModel>("dbo.uspGetProjects", null, commandType: CommandType.StoredProcedure).ToList();
-
+                    db.Close();
                 }
             }
             catch (SqlException e)
@@ -786,6 +787,7 @@ namespace i2b2_csv_loader.Controllers
                     var p = new DynamicParameters();
                     p.Add("@ProjectID", projectid, dbType: DbType.String);
                     fns = db.Query<ProjectFiles>("dbo.uspGetProjectFiles", p, commandType: CommandType.StoredProcedure).ToList();
+                    db.Close();
                 }
             }
             catch (SqlException)
@@ -810,6 +812,7 @@ namespace i2b2_csv_loader.Controllers
                     p.Add("@ProjectID", projectid, dbType: DbType.String);
                     p.Add("@FileID", fileid, dbType: DbType.String);
                     fp = db.Query<FileProperties>("dbo.uspGetProjectFileColumns", p, commandType: CommandType.StoredProcedure).ToList();
+                    db.Close();
                 }
             }
             catch (SqlException)
