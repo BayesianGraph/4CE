@@ -30,6 +30,7 @@ namespace i2b2_csv_loader.Controllers
         }
 
         #region "GET Method"
+
         public ActionResult Index()
         {
 
@@ -126,6 +127,7 @@ namespace i2b2_csv_loader.Controllers
         {
             return ValidateForm(batch);
         }
+
         [HttpPost]
         [Route("Home/GetFileIDs/{projectid?}")]
         public IActionResult GetFileIDs(string projectid)
