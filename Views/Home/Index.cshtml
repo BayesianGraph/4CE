@@ -23,7 +23,7 @@ Harvard Medical School
         var _all_files = {}; //new FormData(); FormData methods dont work in IE, so I changed it to an OBJ
         var _tmp_file;
         var _status = 10;
-        var _prefix = "";//"4CE\\";
+        var _prefix = //"4CE\\";
 
         function addFile(files) {
             //add only one file to the basket at a time.
@@ -58,7 +58,6 @@ Harvard Medical School
             $(".messages-label-text").html("");
             $("#div-messages").html("");
 
-
             var personsname = $("#PersonsName").val();
             var email = $("#Email").val();
             var siteid = $("#SiteID").val();
@@ -92,7 +91,7 @@ Harvard Medical School
                     $("#div-messages").html("");
                     var rtn = message;
                     if (rtn.valid) {
-                        saveinfo();
+                        
                         $(".messages-label").show();
                         $(".messages-label-text").html("");
                         $(".messages-label-text").attr("style", "color:#009900");
@@ -139,9 +138,7 @@ Harvard Medical School
 
             $("#sel-projects").ready(function () {
                 getprojects();
-            });
-
-            getinfo();
+            });            
 
         });
 
@@ -197,7 +194,7 @@ Harvard Medical School
                     <h5>Your name</h5>
                 </div>
                 <div class="col">
-                    <input type="text" class="form-control" id="PersonsName" maxlength="200" name="PersonsName" value="@ViewBag.PersonsName" />
+                    <input type="text" class="form-control" id="PersonsName" maxlength="200" name="PersonsName" value="" />
                 </div>
             </div>
             <div class="row">
@@ -205,7 +202,7 @@ Harvard Medical School
                     <h5>Email</h5>
                 </div>
                 <div class="col">
-                    <input type="text" class="form-control" id="Email" maxlength="100" name="Email" value="@ViewBag.Email" />
+                    <input type="text" class="form-control" id="Email" maxlength="100" name="Email" value="" />
                 </div>
             </div>
             <div class="row">
