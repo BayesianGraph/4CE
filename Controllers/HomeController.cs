@@ -383,7 +383,7 @@ namespace i2b2_csv_loader.Controllers
                                             int parsedResult;
                                             if (!int.TryParse(c, out parsedResult))
                                             {
-                                                MessageValidationManager.Check(ref messages, $"{f.LatestFileName} contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}.");
+                                                MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains invalid data in column {fcp.ColumnName}, which should only contain values of type {fcp.DataType}.");
                                             }
                                             else if (!Helpers.RangeValidation.IntRanges(parsedResult, fcp.MaxValue, fcp.MinValue))
                                             { MessageValidationManager.Check(ref messages, $"There are values in column {fcp.ColumnName} in <span class='file-col'>{f.LatestFileName}</span> that are outside the allowed range."); }
