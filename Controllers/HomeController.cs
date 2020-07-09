@@ -46,12 +46,12 @@ namespace i2b2_csv_loader.Controllers
         public async Task<IActionResult> UploadFilesAsync()
         {
             var files = Request.Form.Files;
-            ResponseModel rm = new ResponseModel() { messages = new List<string>() };
+            ResponseModel rm = new ResponseModel() { messages = new List<ValidateDataModel>() };
             BatchHead form = new BatchHead();
 
             //Check that we have at least 1 file and a full batch header of email, siteid, projectid before we validate form.
             rm = PreValidation(rm, files);
-            if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
+            if (rm.messages.Count(x => x.error != "") != 0) { rm.valid = false; return Json(rm); }
 
 
             form = JsonSerializer.Deserialize<BatchHead>(Request.Form["batchHeader"].ToString());
@@ -59,13 +59,13 @@ namespace i2b2_csv_loader.Controllers
             ProjectModel pm = GetProjects().Find(x => x.ProjectID == form.ProjectID);
 
             rm = StepOneValidation(rm, files, form);   ///CSV, FileName, DupFileName
-            if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
+            if (rm.messages.Count(x => x.error != "") != 0) { rm.valid = false; return Json(rm); }
 
             rm = StepTwoValidation(rm, form);   ///Can open file? Column names, Site IDs in First COL
-            if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
+            if (rm.messages.Count(x => x.error != "") != 0) { rm.valid = false; return Json(rm); }
 
             rm = StepThreeValidation(rm, form, pm);  ///Data types and values
-            if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
+            if (rm.messages.Count(x => x.error != "") != 0) { rm.valid = false; return Json(rm); }
 
             #region "DROPBOX UPLOAD DB ROW STORAGE"
             System.Guid UploadID = StartUpload(form);
@@ -73,8 +73,13 @@ namespace i2b2_csv_loader.Controllers
             foreach (var file in _files)
                 UploadFileDataToDatabase(UploadID, file);
 
+
+            //rm.messages can be warning and errors.  If its warnings and no errors then the upload will 
+            //continue and the user will see warnings in the user interface after their upload is 
+            //completed with no errors.
             rm.messages = ValidateData(UploadID);
-            if (rm.messages.Count() != 0) { rm.valid = false; return Json(rm); }
+
+            if (rm.messages.Count(x => x.error != "") != 0) { rm.valid = false; return Json(rm); }
 
             bool test = false;
 
@@ -85,7 +90,6 @@ namespace i2b2_csv_loader.Controllers
                 if (!test)
                 {
                     rm.valid = false;
-                    rm.messages.Add("Failure Saving File to Archive");
                     return Json(rm);
                 }
 
@@ -93,7 +97,7 @@ namespace i2b2_csv_loader.Controllers
             catch (Exception ex)
             {
                 rm.valid = false;
-                rm.messages.Add(ex.Message);
+                rm.messages.Add(new ValidateDataModel { error = ex.Message });
                 return Json(rm);
             }
 
@@ -104,21 +108,23 @@ namespace i2b2_csv_loader.Controllers
                 if (!test)
                 {
                     rm.valid = false;
-                    rm.messages.Add("Failure Saving File to Latest");
+                    rm.messages.Add(new ValidateDataModel { error = "Failure Saving File to Latest." });
                     return Json(rm);
                 }
             }
             catch (Exception ex)
             {
                 rm.valid = false;
-                rm.messages.Add(ex.Message);
+                rm.messages.Add(new ValidateDataModel { error = ex.Message });
                 return Json(rm);
             }
 
             #endregion
 
             rm.valid = true;
-            rm.messages.Add($"Your files were successfully saved.");
+            //success
+            rm.messages.Add(new ValidateDataModel { success = "Your files were successfully saved." });
+
             return Json(rm);
 
         }
@@ -140,19 +146,19 @@ namespace i2b2_csv_loader.Controllers
         #region "Validation"
         private IActionResult ValidateForm(BatchHead batch)
         {
-            ResponseModel rm = new ResponseModel() { messages = new List<string>() };
+            ResponseModel rm = new ResponseModel() { messages = new List<ValidateDataModel>() };
 
             if (batch.PersonsName.Trim() == "")
-                rm.messages.Add("Name field required.");
+                rm.messages.Add(new ValidateDataModel { error = "Name field required." });
 
             if (!RegexUtilities.IsValidEmail(batch.Email))
-                rm.messages.Add("Email is not valid.");
+                  rm.messages.Add(new ValidateDataModel { error = "Email is not valid." });
 
             if (batch.SiteID.Trim() == "")
-                rm.messages.Add("SiteID field required.");
+                  rm.messages.Add(new ValidateDataModel { error = "SiteID field required." });
             else
             if (batch.SiteID.Trim().Any(ch => !Char.IsLetterOrDigit(ch)) || batch.SiteID.Trim().Contains(" ") || batch.SiteID.Substring(0, 1).Any(ch => !Char.IsLetter(ch)))
-                rm.messages.Add("SiteID must be up to 20 letters or numbers, starting with a letter, and with no spaces or special characters.");
+                  rm.messages.Add(new ValidateDataModel { error = "SiteID must be up to 20 letters or numbers, starting with a letter, and with no spaces or special characters." });
 
             rm.valid = (rm.messages.Count == 0 ? true : false);
 
@@ -176,20 +182,20 @@ namespace i2b2_csv_loader.Controllers
             catch (JsonException ex)
             {
                 Console.WriteLine(ex.Message);
-                rm.messages.Add("Form data is not correct. Please check Name, Email, SiteID and Project fields.");
+                  rm.messages.Add(new ValidateDataModel { error = "Form data is not correct. Please check Name, Email, SiteID and Project fields." });
 
 
             }
 
             if (files.Count() == 0)
             {
-                rm.messages.Add("Upload must include at least one file.");
+                  rm.messages.Add(new ValidateDataModel { error = "Upload must include at least one file." });
             }
             return rm;
         }
         private ResponseModel StepOneValidation(ResponseModel rm, IFormFileCollection files, BatchHead form)
         {
-            List<string> messages = new List<string>();
+            List<ValidateDataModel> messages = new List<ValidateDataModel>();
             List<ProjectFiles> pfs = GetProjectFiles(form.ProjectID);
             try
             {
@@ -241,7 +247,7 @@ namespace i2b2_csv_loader.Controllers
         }
         private ResponseModel StepTwoValidation(ResponseModel rm, BatchHead form)
         {
-            List<string> messages = new List<string>();
+            List<ValidateDataModel> messages  = new List<ValidateDataModel>();
             bool log = true;
             foreach (Models.Files f in _files)
             {
@@ -296,28 +302,7 @@ namespace i2b2_csv_loader.Controllers
         }
         private ResponseModel StepThreeValidation(ResponseModel rm, BatchHead form, ProjectModel pm)
         {
-            List<string> messages = new List<string>();
-
-
-
-
-
-            //if (log)
-            //{
-            //    foreach (var row in data)
-            //    {                //first col of every line should be the siteid
-            //        if (!(CSVReader.ParseLine(row)[0].ToLower() == form.SiteID.ToLower()))
-            //        {
-            //            MessageValidationManager.Check(ref messages, $"The siteid values in <span class='file-col'>{f.LatestFileName}</span> do not match the Siteid in the form.");
-            //            log = false;
-            //        }
-            //    }
-
-            //}
-
-
-
-
+            List<ValidateDataModel> messages = new List<ValidateDataModel>();
 
             foreach (Models.Files f in _files)
             {
@@ -417,19 +402,13 @@ namespace i2b2_csv_loader.Controllers
 
             }
 
-
-
-
             rm.messages = messages;
 
             return rm;
-
         }
-
-
-        private List<string> ValidateData(System.Guid UploadID)
+        private List<ValidateDataModel> ValidateData(System.Guid UploadID)
         {
-            List<string> retVal = new List<string>();
+            List<ValidateDataModel> retVal = new List<ValidateDataModel>();
             try
             {
                 using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
@@ -442,15 +421,14 @@ namespace i2b2_csv_loader.Controllers
                     l = db.Query<ValidateDataModel>("[dbo].[uspValidateData]", p, commandType: CommandType.StoredProcedure).ToList();
                     foreach (ValidateDataModel v in l)
                     {
-                        retVal.Add(v.error);
+                        retVal.Add(v);
                     }
                 }
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
-                retVal.Add(e.Message);
-                return retVal;
+                retVal.Add(new ValidateDataModel { error = e.Message });
             }
             return retVal;
         }

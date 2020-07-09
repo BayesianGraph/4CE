@@ -8,5 +8,7 @@ namespace i2b2_csv_loader.Models
     public class ValidateDataModel
     {
         public string error { get; set; }
+        public string warning { get; set; }
+        public string success { get; set; }
     }
 }

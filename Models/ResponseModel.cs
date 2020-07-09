@@ -8,7 +8,7 @@ namespace i2b2_csv_loader.Models
     public class ResponseModel
     {
         public bool valid { get; set; }
-        public List<string> messages { get; set; }
+        public List<ValidateDataModel> messages { get; set; }
             
     }
 }
