@@ -92,14 +92,14 @@ Harvard Medical School
                         $("#div-messages").html("");
                         var rtn = message;
                         if (rtn.valid) {
-
+                            debugger;
                             $(".messages-label").show();
                             $(".messages-label-text").html("");
                             $(".messages-label-text").attr("style", "color:#009900");
 
                             for (var msg in rtn.messages) {
-
-                                $(".messages-label-text").append(rtn.messages[msg]);
+                                $(".messages-label-text").append(rtn.messages[msg].error);
+                                $(".messages-label-text").append(rtn.messages[msg].warnings);
                             }
 
                         } else {
@@ -174,7 +174,6 @@ Harvard Medical School
 
                 return bar;
             }
-
             function updatestatusbar() {
                 var bar = setInterval(function () {
                     _status = _status + Math.floor((100 - _status) * 0.1);
@@ -182,7 +181,6 @@ Harvard Medical School
                     $(".w3-green").css("width", _status + "%")
                 }, 2000);
             }
-
         </script>
         <div style="min-width:800px;margin-bottom:100px;">
 

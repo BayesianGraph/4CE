@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <RootNamespace>i2b2_csv_loader</RootNamespace>
+    <UserSecretsId>e84fd071-6cd8-4821-b807-c8f321c32fba</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
