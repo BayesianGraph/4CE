@@ -322,7 +322,7 @@ namespace i2b2_csv_loader.Controllers
                         foreach (string c in row)
                         {
                             //every property of a column from the database
-                            fcp = f.FileProperties.Find(x => x.ColumnName == colheaders[colcnt]);
+                            fcp = f.FileProperties.Find(x => x.ColumnName.ToLower() == colheaders[colcnt].ToLower());
 
                             if (fcp != null)
                             {
