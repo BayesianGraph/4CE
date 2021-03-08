@@ -30,6 +30,7 @@ namespace i2b2_csv_loader.Controllers
         }
 
         #region "GET Method"
+
         public ActionResult Index()
         {
 
@@ -39,9 +40,8 @@ namespace i2b2_csv_loader.Controllers
             return View();
         }
         #endregion
-
-
         #region "POST Methods"
+
         [HttpPost]
         public async Task<IActionResult> UploadFilesAsync()
         {
@@ -79,7 +79,7 @@ namespace i2b2_csv_loader.Controllers
             //completed with no errors.
             rm.messages = ValidateData(UploadID);
 
-            if (rm.messages.Count(x => x.error != null) != 0) { rm.valid = false; return Json(rm); }
+            if (rm.messages.Count(x => x.error != "") != 0) { rm.valid = false; return Json(rm); }
 
             bool test = false;
 
@@ -133,6 +133,7 @@ namespace i2b2_csv_loader.Controllers
         {
             return ValidateForm(batch);
         }
+
         [HttpPost]
         [Route("Home/GetFileIDs/{projectid?}")]
         public IActionResult GetFileIDs(string projectid)
@@ -142,8 +143,6 @@ namespace i2b2_csv_loader.Controllers
 
         }
         #endregion
-
-
         #region "Validation"
         private IActionResult ValidateForm(BatchHead batch)
         {
@@ -166,6 +165,7 @@ namespace i2b2_csv_loader.Controllers
 
             return Json(rm);
         }
+
         private ResponseModel PreValidation(ResponseModel rm, IFormFileCollection files)
         {
             BatchHead form;
@@ -329,7 +329,7 @@ namespace i2b2_csv_loader.Controllers
                                 if (fcp.SortOrder != (colcnt + 1).ToString()) { MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column header order.They must be {GetColumnList(f.FileProperties)}."); }
 
                                 if (fcp.ColumnName.ToLower() == "siteid")
-                                    if (c.Substring(0,form.SiteID.Length-1).ToLower() != form.SiteID.ToLower()) // ZAP do a substring to make sure the siteid is prefixed to what they key into the column.  BIDMC_YY and BIDCM_XX are both ok for example.
+                                    if (c.ToLower() != form.SiteID.ToLower())
                                     {
                                         MessageValidationManager.Check(ref messages, $"The siteid values in <span class='file-col'>{f.LatestFileName}</span> do not match the Siteid in the form.");
                                     }
@@ -433,9 +433,6 @@ namespace i2b2_csv_loader.Controllers
             return retVal;
         }
         #endregion
-        
-        
-        
         #region "DropBox"
         async Task<bool> SaveToArchive(System.Guid UploadID, string projectpath)
         {
@@ -815,6 +812,6 @@ namespace i2b2_csv_loader.Controllers
 
 
         }
-        #endregion 
+
     }
 }

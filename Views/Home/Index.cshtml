@@ -97,8 +97,9 @@ Harvard Medical School
                             $(".messages-label-text").html("");
                             $(".messages-label-text").attr("style", "color:#009900");
 
-                            for (var msg in rtn.messages) {                              
-                               $(".messages-label-text").append("<li>" + rtn.messages[msg].warning + "</li>");                                
+                            for (var msg in rtn.messages) {
+
+                                $(".messages-label-text").append(rtn.messages[msg]);
                             }
 
                     } else {
