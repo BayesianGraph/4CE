@@ -26,7 +26,8 @@ namespace i2b2_csv_loader.Helpers
             {
                 while (loop)
                 {
-                    string[] row = pcsv.Read();
+                    pcsv.Read();
+                    string[] row = pcsv.Record;
                     if (row == null) { loop = false; }
                     else
                         records.Add(row);

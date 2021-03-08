@@ -97,9 +97,13 @@ Harvard Medical School
                             $(".messages-label-text").html("");
                             $(".messages-label-text").attr("style", "color:#009900");
 
+                            if (rtn.messages[0].warning != "") {
+                                $(".messages-label-text").append("Warnings");
+                            }
+
                             for (var msg in rtn.messages) {
 
-                                $(".messages-label-text").append(rtn.messages[msg]);
+                                $(".messages-label-text").append("<li>" + rtn.messages[msg].warning + "</li>");
                             }
 
                     } else {
@@ -109,10 +113,9 @@ Harvard Medical School
                             if (rtn.messages[msg].error) {
                                 $("#div-messages").append("<li>" + rtn.messages[msg].error + "</li>");
                             } else if (rtn.messages[msg].warning) {
-                                $(".messages-label-text").append("<li>" + rtn.messages[msg].warning + "</li>");
+                                $(".messages-label-text").append("<li>Warning: " + rtn.messages[msg].warning + "</li>");
                             }
                         }
-
                     }
                 },
                 error: function (message) {

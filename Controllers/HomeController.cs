@@ -79,7 +79,7 @@ namespace i2b2_csv_loader.Controllers
             //completed with no errors.
             rm.messages = ValidateData(UploadID);
 
-            if (rm.messages.Count(x => x.error != "") != 0) { rm.valid = false; return Json(rm); }
+            if (rm.messages.Count(x => x.error != null) != 0) { rm.valid = false; return Json(rm); }
 
             bool test = false;
 
@@ -152,13 +152,13 @@ namespace i2b2_csv_loader.Controllers
                 rm.messages.Add(new ValidateDataModel { error = "Name field required." });
 
             if (!RegexUtilities.IsValidEmail(batch.Email))
-                  rm.messages.Add(new ValidateDataModel { error = "Email is not valid." });
+                rm.messages.Add(new ValidateDataModel { error = "Email is not valid." });
 
             if (batch.SiteID.Trim() == "")
-                  rm.messages.Add(new ValidateDataModel { error = "SiteID field required." });
+                rm.messages.Add(new ValidateDataModel { error = "SiteID field required." });
             else
             if (batch.SiteID.Trim().Any(ch => !Char.IsLetterOrDigit(ch)) || batch.SiteID.Trim().Contains(" ") || batch.SiteID.Substring(0, 1).Any(ch => !Char.IsLetter(ch)))
-                  rm.messages.Add(new ValidateDataModel { error = "SiteID must be up to 20 letters or numbers, starting with a letter, and with no spaces or special characters." });
+                rm.messages.Add(new ValidateDataModel { error = "SiteID must be up to 20 letters or numbers, starting with a letter, and with no spaces or special characters." });
 
             rm.valid = (rm.messages.Count == 0 ? true : false);
 
@@ -182,14 +182,14 @@ namespace i2b2_csv_loader.Controllers
             catch (JsonException ex)
             {
                 Console.WriteLine(ex.Message);
-                  rm.messages.Add(new ValidateDataModel { error = "Form data is not correct. Please check Name, Email, SiteID and Project fields." });
+                rm.messages.Add(new ValidateDataModel { error = "Form data is not correct. Please check Name, Email, SiteID and Project fields." });
 
 
             }
 
             if (files.Count() == 0)
             {
-                  rm.messages.Add(new ValidateDataModel { error = "Upload must include at least one file." });
+                rm.messages.Add(new ValidateDataModel { error = "Upload must include at least one file." });
             }
             return rm;
         }
@@ -247,7 +247,7 @@ namespace i2b2_csv_loader.Controllers
         }
         private ResponseModel StepTwoValidation(ResponseModel rm, BatchHead form)
         {
-            List<ValidateDataModel> messages  = new List<ValidateDataModel>();
+            List<ValidateDataModel> messages = new List<ValidateDataModel>();
             bool log = true;
             foreach (Models.Files f in _files)
             {
@@ -329,7 +329,7 @@ namespace i2b2_csv_loader.Controllers
                                 if (fcp.SortOrder != (colcnt + 1).ToString()) { MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column header order.They must be {GetColumnList(f.FileProperties)}."); }
 
                                 if (fcp.ColumnName.ToLower() == "siteid")
-                                    if (c.ToLower() != form.SiteID.ToLower())
+                                    if (c.Contains("_") ? (c.Substring(0, form.SiteID.Length).ToLower() == form.SiteID.ToLower() ? false : true) : (c.ToLower()==form.SiteID.ToLower() ? false : true))
                                     {
                                         MessageValidationManager.Check(ref messages, $"The siteid values in <span class='file-col'>{f.LatestFileName}</span> do not match the Siteid in the form.");
                                     }
@@ -812,6 +812,6 @@ namespace i2b2_csv_loader.Controllers
 
 
         }
-
+        #endregion 
     }
 }
