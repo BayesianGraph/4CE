@@ -24,7 +24,7 @@ Harvard Medical School
         var _all_files = {}; //new FormData(); FormData methods dont work in IE, so I changed it to an OBJ
         var _tmp_file;
         var _status = 10;
-        var _prefix = "4CE\\";
+        var _prefix = "";//"4CE\\";
 
         function addFile(files) {
             //add only one file to the basket at a time.
@@ -94,17 +94,18 @@ Harvard Medical School
                         if (rtn.valid) {
 
                             $(".messages-label").show();
-                            $(".messages-label-text").html("");
+                            $(".messages-label-text").html(rtn.messages[0].success);
                             $(".messages-label-text").attr("style", "color:#009900");
 
-                            if (rtn.messages[0].warning != "") {
+
+                            if (rtn.messages[0].warning != null) {
                                 $(".messages-label-text").append("Warnings");
+                                for (var msg in rtn.messages) {
+                                    $(".messages-label-text").append("<li>" + rtn.messages[msg].warning + "</li>");
+                                }
                             }
 
-                            for (var msg in rtn.messages) {
-
-                                $(".messages-label-text").append("<li>" + rtn.messages[msg].warning + "</li>");
-                            }
+                            
 
                     } else {
                         $(".messages-label").show();

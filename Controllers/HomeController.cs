@@ -71,14 +71,16 @@ namespace i2b2_csv_loader.Controllers
             System.Guid UploadID = StartUpload(form);
 
             foreach (var file in _files)
-                UploadFileDataToDatabase(UploadID, file);
-
+            {
+               rm = UploadFileDataToDatabase(rm,UploadID, file);
+               if (rm.messages.Count(x => x.error != "") != 0) { rm.valid = false; return Json(rm); }
+            }
+            
 
             //rm.messages can be warning and errors.  If its warnings and no errors then the upload will 
             //continue and the user will see warnings in the user interface after their upload is 
             //completed with no errors.
             rm.messages = ValidateData(UploadID);
-
             if (rm.messages.Count(x => x.error != null) != 0) { rm.valid = false; return Json(rm); }
 
             bool test = false;
@@ -699,20 +701,22 @@ namespace i2b2_csv_loader.Controllers
             }
             return uploadID;
         }
-        private bool UploadFileDataToDatabase(System.Guid UploadID, Files dataFile)
-        {
+        private ResponseModel UploadFileDataToDatabase(ResponseModel rm, System.Guid UploadID, Files dataFile)
+        {            
             List<string> lines = CSVReader.ReadFormFile(dataFile.File);
             lines.Remove(lines[0]);
             int i = 1;
             foreach (string line in lines)
             {
-                UploadLineDataToDatabase(UploadID, dataFile.FileID, i, line);
+                rm = UploadLineDataToDatabase(rm,UploadID, dataFile.FileID, i, line);
                 i++;
             }
-            return true;
+
+            return rm;
         }
-        private bool UploadLineDataToDatabase(System.Guid UploadID, string fileID, int lineNum, string line)
+        private ResponseModel UploadLineDataToDatabase(ResponseModel rm, System.Guid UploadID, string fileID, int lineNum, string line)
         {
+            List<ValidateDataModel> messages = new List<ValidateDataModel>();
             try
             {
                 using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
@@ -728,8 +732,7 @@ namespace i2b2_csv_loader.Controllers
                     foreach (string col in cols)
                     {
                         p.Add("@Col" + i, col, dbType: DbType.String);
-                        i++;
-                        if (i >= 19) break;
+                        i++;                        
                     }
                     p.Add("Status", "", dbType: DbType.String, ParameterDirection.Output);
                     List<StartUploadResults> l = new List<StartUploadResults>();
@@ -739,10 +742,12 @@ namespace i2b2_csv_loader.Controllers
             }
             catch (Exception e)
             {
-                return false;
+                //$"An unexpected error occured in <span class='file-col'>{f.LatestFileName}</span>."
+                messages.Add(new ValidateDataModel { error = $"Error line number: {lineNum}. Data: {line}"});
+                rm.messages = messages;
             }
 
-            return true;
+            return rm;
         }
         private List<ProjectModel> GetProjects()
         {
