@@ -15,6 +15,7 @@ using Dropbox.Api.Files;
 using System.Threading.Tasks;
 using Dropbox.Api;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using System.Threading;
 
 namespace i2b2_csv_loader.Controllers
 {
@@ -72,10 +73,17 @@ namespace i2b2_csv_loader.Controllers
 
             foreach (var file in _files)
             {
-               rm = UploadFileDataToDatabase(rm,UploadID, file);
-               if (rm.messages.Count(x => x.error != "") != 0) { rm.valid = false; return Json(rm); }
+                try
+                {
+                    await UploadFileDataToDatabase(UploadID, file);
+                }
+                catch (Exception ex)
+                {
+                    if (rm.messages.Count(x => x.error != "") != 0) { rm.valid = false; return Json(rm); }
+
+                }
             }
-            
+
 
             //rm.messages can be warning and errors.  If its warnings and no errors then the upload will 
             //continue and the user will see warnings in the user interface after their upload is 
@@ -331,7 +339,7 @@ namespace i2b2_csv_loader.Controllers
                                 if (fcp.SortOrder != (colcnt + 1).ToString()) { MessageValidationManager.Check(ref messages, $"<span class='file-col'>{f.LatestFileName}</span> contains incorrect column header order.They must be {GetColumnList(f.FileProperties)}."); }
 
                                 if (fcp.ColumnName.ToLower() == "siteid")
-                                    if (c.Contains("_") ? (c.Substring(0, form.SiteID.Length).ToLower() == form.SiteID.ToLower() ? false : true) : (c.ToLower()==form.SiteID.ToLower() ? false : true))
+                                    if (c.Contains("_") ? (c.Substring(0, form.SiteID.Length).ToLower() == form.SiteID.ToLower() ? false : true) : (c.ToLower() == form.SiteID.ToLower() ? false : true))
                                     {
                                         MessageValidationManager.Check(ref messages, $"The siteid values in <span class='file-col'>{f.LatestFileName}</span> do not match the Siteid in the form.");
                                     }
@@ -701,22 +709,25 @@ namespace i2b2_csv_loader.Controllers
             }
             return uploadID;
         }
-        private ResponseModel UploadFileDataToDatabase(ResponseModel rm, System.Guid UploadID, Files dataFile)
-        {            
+        private async Task UploadFileDataToDatabase(System.Guid UploadID, Files dataFile)
+        {
             List<string> lines = CSVReader.ReadFormFile(dataFile.File);
             lines.Remove(lines[0]);
             int i = 1;
+            var tasks = new List<Task>();
+            using var semaphore = new SemaphoreSlim(15);
+
             foreach (string line in lines)
             {
-                rm = UploadLineDataToDatabase(rm,UploadID, dataFile.FileID, i, line);
+                await semaphore.WaitAsync();
+                tasks.Add(UploadLineDataToDatabase(semaphore, UploadID, dataFile.FileID, i, line));
                 i++;
             }
+            await Task.WhenAll(tasks);
 
-            return rm;
         }
-        private ResponseModel UploadLineDataToDatabase(ResponseModel rm, System.Guid UploadID, string fileID, int lineNum, string line)
+        private async Task UploadLineDataToDatabase(SemaphoreSlim semaphore, System.Guid UploadID, string fileID, int lineNum, string line)
         {
-            List<ValidateDataModel> messages = new List<ValidateDataModel>();
             try
             {
                 using (IDbConnection db = new SqlConnection(_configuration.GetConnectionString("4CE")))
@@ -732,22 +743,21 @@ namespace i2b2_csv_loader.Controllers
                     foreach (string col in cols)
                     {
                         p.Add("@Col" + i, col, dbType: DbType.String);
-                        i++;                        
+                        i++;
                     }
                     p.Add("Status", "", dbType: DbType.String, ParameterDirection.Output);
                     List<StartUploadResults> l = new List<StartUploadResults>();
-                    db.Execute("[dbo].[uspLoadData]", p, commandType: CommandType.StoredProcedure);
+                    await db.ExecuteAsync("[dbo].[uspLoadData]", p, commandType: CommandType.StoredProcedure);
                     db.Close();
                 }
             }
             catch (Exception e)
             {
-                //$"An unexpected error occured in <span class='file-col'>{f.LatestFileName}</span>."
-                messages.Add(new ValidateDataModel { error = $"Error line number: {lineNum}. Data: {line}"});
-                rm.messages = messages;
+                throw new Exception($"Error line number: {lineNum}. Data: {line} Database Error: {e.Message}");
             }
+            finally { semaphore.Release(); }
 
-            return rm;
+
         }
         private List<ProjectModel> GetProjects()
         {
