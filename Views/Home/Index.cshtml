@@ -76,36 +76,36 @@ Harvard Medical School
 
             var formdata = new FormData();
 
-                if (_all_files != undefined) {
-                    for (var key in _all_files) {
-                        formdata.append(key, _all_files[key]);
-                    }
-                    formdata.append("batchHeader", batchHeader);
+            if (_all_files != undefined) {
+                for (var key in _all_files) {
+                    formdata.append(key, _all_files[key]);
                 }
-                $.ajax({
-                    type: "POST",
-                    url: _prefix + "home/UploadFiles",
-                    contentType: false,
-                    processData: false,
-                    data: formdata,
-                    success: function (message) {
-                        $("#div-messages").html("");
-                        var rtn = message;
-                        if (rtn.valid) {
+                formdata.append("batchHeader", batchHeader);
+            }
+            $.ajax({
+                type: "POST",
+                url: _prefix + "home/UploadFiles",
+                contentType: false,
+                processData: false,
+                data: formdata,
+                success: function (message) {
+                    $("#div-messages").html("");
+                    var rtn = message;
+                    if (rtn.valid) {
 
-                            $(".messages-label").show();
-                            $(".messages-label-text").html(rtn.messages[0].success);
-                            $(".messages-label-text").attr("style", "color:#009900");
+                        $(".messages-label").show();
+                        $(".messages-label-text").html(rtn.messages[0].success);
+                        $(".messages-label-text").attr("style", "color:#009900");
 
 
-                            if (rtn.messages[0].warning != null) {
-                                $(".messages-label-text").append("Warnings");
-                                for (var msg in rtn.messages) {
-                                    $(".messages-label-text").append("<li>" + rtn.messages[msg].warning + "</li>");
-                                }
+                        if (rtn.messages[0].warning != null) {
+                            $(".messages-label-text").append("Warnings");
+                            for (var msg in rtn.messages) {
+                                $(".messages-label-text").append("<li>" + rtn.messages[msg].warning + "</li>");
                             }
+                        }
 
-                            
+
 
                     } else {
                         $(".messages-label").show();
@@ -181,19 +181,19 @@ Harvard Medical School
                 "<div class=\"w3-green\" style=\"height:24px;width:10%\"></div>" +
                 "</div>";
 
-                return bar;
-            }
+            return bar;
+        }
 
-            function updatestatusbar() {
-                var bar = setInterval(function () {
-                    _status = _status + Math.floor((100 - _status) * 0.1);
-                    if (_status > 99) { _status = 99; }
-                    $(".w3-green").css("width", _status + "%")
-                }, 2000);
-            }
+        function updatestatusbar() {
+            var bar = setInterval(function () {
+                _status = _status + Math.floor((100 - _status) * 0.1);
+                if (_status > 99) { _status = 99; }
+                $(".w3-green").css("width", _status + "%")
+            }, 2000);
+        }
 
-        </script>
-        <div style="min-width:800px;margin-bottom:100px;">
+    </script>
+    <div style="min-width:800px;margin-bottom:100px;">
 
         <div class="container">
             <div class="row">
@@ -263,6 +263,7 @@ Harvard Medical School
                 <div class="col-1">
                     <input type="button" class="button" onclick="ProcessBatch()" id="cmd-process-batch" value="Upload and Validate" />
                 </div>
+                <div id="upload-button-note">Note: large files might take a few minutes to upload.</div>
             </div>
             <div class="row">
                 <div class="col messages-label">

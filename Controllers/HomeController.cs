@@ -715,7 +715,7 @@ namespace i2b2_csv_loader.Controllers
             lines.Remove(lines[0]);
             int i = 1;
             var tasks = new List<Task>();
-            using var semaphore = new SemaphoreSlim(15);
+            using var semaphore = new SemaphoreSlim(25);
 
             foreach (string line in lines)
             {

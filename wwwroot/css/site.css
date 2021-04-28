@@ -205,3 +205,9 @@ input[type=file] {
     color:#3170ad;
 
 }
+
+#upload-button-note {  
+    margin-top:32px;
+    margin-left: 80px;
+    font-style: italic;
+}
