@@ -41,7 +41,7 @@ Harvard Medical School
 
         function AddFileRow(name) {
             var rowid = name.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-            var button = "<button onclick=\"removerow('" + rowid + "');\" type=\"button\" class=\"close\" aria-label=\"Close\">" +
+            var button = "<button style=\"position:relative;top:3px;\" onclick=\"removerow('" + rowid + "');\" type=\"button\" class=\"close\" aria-label=\"Close\">" +
                 "<span aria-hidden=\"true\">&times;</span>" +
                 "</button>";
             if (!$("#file-list").find("#" + rowid).length) {
@@ -94,28 +94,36 @@ Harvard Medical School
                     if (rtn.valid) {
 
                         $(".messages-label").show();
-                        $(".messages-label-text").html(rtn.messages[0].success);
+                        $(".messages-label-text").html(rtn.messages.find(x=> x.success !=null).success);
                         $(".messages-label-text").attr("style", "color:#009900");
 
-
-                        if (rtn.messages[0].warning != null) {
-                            $(".messages-label-text").append("Warnings");
-                            for (var msg in rtn.messages) {
-                                $(".messages-label-text").append("<li>" + rtn.messages[msg].warning + "</li>");
-                            }
+                        if (rtn.messages.find(y => y.warning != null)) {
+                            Object.entries(rtn.messages).forEach(entry => {
+                                const [key, value] = entry; if (rtn.messages[key].warning != null) {                                    
+                                    $(".messages-label-text").append("<li>Warning: " + rtn.messages[key].warning + "</li>");
+                                }
+                            });
                         }
-
-
 
                     } else {
                         $(".messages-label").show();
                         $(".messages-label-text").html("Your files could not be processed…");
-                        for (var msg in rtn.messages) {
-                            if (rtn.messages[msg].error) {
-                                $("#div-messages").append("<li>" + rtn.messages[msg].error + "</li>");
-                            } else if (rtn.messages[msg].warning) {
-                                $(".messages-label-text").append("<li>Warning: " + rtn.messages[msg].warning + "</li>");
-                            }
+
+
+                        if (rtn.messages.find(y => y.error != null)) {
+                            Object.entries(rtn.messages).forEach(entry => {
+                                const [key, value] = entry; if (rtn.messages[key].error != null) {
+                                    $("#div-messages").append("<li>" + rtn.messages[key].error + "</li>");
+                                }
+                            });
+                        }
+
+                        if (rtn.messages.find(y => y.warning != null)) {
+                            Object.entries(rtn.messages).forEach(entry => {
+                                const [key, value] = entry; if (rtn.messages[key].warning != null) {
+                                    $(".messages-label-text").append("<li>Warning: " + rtn.messages[key].warning + "</li>");
+                                }
+                            });
                         }
                     }
                 },
@@ -263,7 +271,7 @@ Harvard Medical School
                 <div class="col-1">
                     <input type="button" class="button" onclick="ProcessBatch()" id="cmd-process-batch" value="Upload and Validate" />
                 </div>
-                <div id="upload-button-note">Note: large files might take a few minutes to upload.</div>
+                <div id="upload-button-note" style="margin-left:80px;margin-top:30px"><b>Note:</b> large files might take a few minutes to upload.</div>
             </div>
             <div class="row">
                 <div class="col messages-label">
